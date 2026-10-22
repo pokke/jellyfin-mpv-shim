@@ -1556,13 +1556,16 @@ class TestPlayFromBeginning(unittest.TestCase):
                                     ("play", "m9", None)])
 
 
-class TestMarkSeasonPlayed(unittest.TestCase):
-    """The episode page's More menu can mark the whole season played. The
-    SEASON id is what goes to the server; the episode's own DTO is flipped
-    optimistically because it is the only thing on screen that changes."""
+class TestMarkSeasonWatched(unittest.TestCase):
+    """The episode page's More menu can mark the whole season watched or
+    unwatched. The SEASON id is what goes to the server; the episode's own
+    DTO is flipped optimistically because it is the only thing on screen
+    that changes."""
 
     EP = {"Id": "ep1", "Name": "Ep", "Type": "Episode", "SeriesId": "s1",
           "SeasonId": "se1", "UserData": {"PlaybackPositionTicks": 5}}
+    WATCHED = "Mark season as watched"
+    UNWATCHED = "Mark season as unwatched"
 
     def setUp(self):
         self.ctl = FakeController()
@@ -1585,51 +1588,73 @@ class TestMarkSeasonPlayed(unittest.TestCase):
     def _ud(self):
         return self.b.route["_data"]["item"]["UserData"]
 
-    def test_picking_it_marks_the_season_and_flips_the_episode(self):
+    def _mark(self, watched):
+        self.b._actions.mark_season(self.b.route["_data"]["item"], "srv1",
+                                    watched)
+
+    def test_watched_marks_the_season_and_flips_the_episode(self):
         self._open(self.EP)
-        rows = more_rows(self.b, "act")
-        self.assertIn("Mark season played", rows)
-        pick_more(self.b, "act", "Mark season played")
+        pick_more(self.b, "act", self.WATCHED)
         self.assertEqual(self.calls, [("se1", True)])
         self.assertTrue(self._ud()["Played"])
+        self.assertEqual(self._ud()["PlaybackPositionTicks"], 0)
+
+    def test_unwatched_marks_the_season_and_flips_the_episode(self):
+        self._open(dict(self.EP, UserData={"Played": True,
+                                           "PlaybackPositionTicks": 5}))
+        pick_more(self.b, "act", self.UNWATCHED)
+        self.assertEqual(self.calls, [("se1", False)])
+        self.assertFalse(self._ud()["Played"])
+        # Unplaying is what clears a position (ResetPlayedState).
         self.assertEqual(self._ud()["PlaybackPositionTicks"], 0)
 
     def test_the_flip_asks_for_a_repaint(self):
         # Called directly: picking from the menu invalidates on its own when
         # it closes, which would satisfy this whether the action asked or not.
-        self._open(self.EP)
-        self.drawn.clear()
-        self.b._actions.mark_season_played(self.b.route["_data"]["item"],
-                                           "srv1")
-        self.assertTrue(self.drawn, "flipped the DTO and never asked to draw")
+        for watched in (True, False):
+            with self.subTest(watched=watched):
+                self._open(self.EP)
+                self.drawn.clear()
+                self._mark(watched)
+                self.assertTrue(self.drawn,
+                                "flipped the DTO and never asked to draw")
 
     def test_a_refused_write_rolls_the_episode_back(self):
         self.result = False
-        self._open(self.EP)
-        self.drawn.clear()
-        self.b._actions.mark_season_played(self.b.route["_data"]["item"],
-                                           "srv1")
-        self.assertEqual(self.calls, [("se1", True)])
-        self.assertFalse(self._ud().get("Played"))
-        self.assertEqual(self._ud()["PlaybackPositionTicks"], 5)
-        # One repaint for the flip and one for the rollback: without the
-        # second the tick stays on screen over a write nothing recorded.
-        self.assertEqual(len(self.drawn), 2)
+        for watched in (True, False):
+            with self.subTest(watched=watched):
+                self.calls.clear()
+                self._open(dict(self.EP, UserData={
+                    "Played": not watched, "PlaybackPositionTicks": 5}))
+                self.drawn.clear()
+                self._mark(watched)
+                self.assertEqual(self.calls, [("se1", watched)])
+                self.assertEqual(self._ud()["Played"], not watched)
+                self.assertEqual(self._ud()["PlaybackPositionTicks"], 5)
+                # One repaint for the flip and one for the rollback: without
+                # the second the tick stays on screen over a write nothing
+                # recorded.
+                self.assertEqual(len(self.drawn), 2)
 
-    def test_a_film_has_no_such_entry(self):
+    def test_a_film_has_no_such_entries(self):
         self._open({"Id": "m9", "Name": "Film", "Type": "Movie",
                     "UserData": {}})
-        self.assertNotIn("Mark season played", more_rows(self.b, "act"))
+        rows = more_rows(self.b, "act")
+        self.assertNotIn(self.WATCHED, rows)
+        self.assertNotIn(self.UNWATCHED, rows)
 
-    def test_an_episode_without_a_season_has_no_such_entry(self):
+    def test_an_episode_without_a_season_has_no_such_entries(self):
         self._open(dict(self.EP, SeasonId=None))
-        self.assertNotIn("Mark season played", more_rows(self.b, "act"))
+        rows = more_rows(self.b, "act")
+        self.assertNotIn(self.WATCHED, rows)
+        self.assertNotIn(self.UNWATCHED, rows)
 
-    def test_offline_it_is_offered_without_the_server_only_entries(self):
+    def test_offline_they_are_offered_without_the_server_only_entries(self):
         self.b._offline = True
         self._open(self.EP)
         rows = more_rows(self.b, "act")
-        self.assertIn("Mark season played", rows)
+        self.assertIn(self.WATCHED, rows)
+        self.assertIn(self.UNWATCHED, rows)
         self.assertNotIn("Refresh metadata", rows)
         self.assertNotIn("Delete from Disk", rows)
 

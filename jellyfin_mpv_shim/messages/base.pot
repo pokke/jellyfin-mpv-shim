@@ -6854,7 +6854,14 @@ msgstr ""
 #. episode of that episode's season has been watched. An imperative verb
 #. phrase.
 #: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
-msgid "Mark season played"
+msgid "Mark season as watched"
+msgstr ""
+
+#. Entry in the More menu of an episode page that tells the server no
+#. episode of that episode's season has been watched, clearing their saved
+#. positions. An imperative verb phrase.
+#: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
+msgid "Mark season as unwatched"
 msgstr ""
 
 #. Action on an item's menu that opens the playlist chooser. An imperative

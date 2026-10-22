@@ -101,9 +101,11 @@ class DetailPage(Page):
         if item.get("Type") == "Episode" and item.get("SeasonId"):
             # Appended here rather than in `more_entries`, which returns
             # nothing offline: the write is queued like Mark played is.
-            more = list(more) + [(
-                _("Mark season played"), "check",
-                lambda: self.ctx.actions.mark_season_played(item, server))]
+            more = list(more) + [
+                (_("Mark season as watched"), "check",
+                 lambda: self.ctx.actions.mark_season(item, server, True)),
+                (_("Mark season as unwatched"), "check",
+                 lambda: self.ctx.actions.mark_season(item, server, False))]
         blocks.append(self._detail_actions(item, server, more))
         blocks.extend(self._track_pickers(item))
         text = chrome.overview(item)

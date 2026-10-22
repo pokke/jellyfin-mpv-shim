@@ -394,21 +394,24 @@ class ItemActions:
         self._fire(work)
         self.services.invalidate()
 
-    def mark_season_played(self, item, server):
-        """Mark the season ``item`` (an episode) belongs to as played.
+    def mark_season(self, item, server, watched):
+        """Mark the season ``item`` (an episode) belongs to as watched or
+        unwatched.
 
         The season id is what goes to the server, which marks every episode
         in it. The only thing on screen to change is this episode's own DTO,
         so that is flipped optimistically and put back if nothing recorded
-        the write."""
+        the write. Either way the position goes to 0: marking played or
+        unplayed both clear it."""
         ud = item.setdefault("UserData", {})
         was_played = ud.get("Played")
         was_pos = ud.get("PlaybackPositionTicks")
-        ud["Played"] = True
+        ud["Played"] = watched
         ud["PlaybackPositionTicks"] = 0
 
         def work(ctl):
-            if ctl.set_watched(server, item.get("SeasonId"), True) is False:
+            if ctl.set_watched(server, item.get("SeasonId"),
+                               watched) is False:
                 # Read again: a stop patch may have swapped the dict since.
                 ud = item.setdefault("UserData", {})
                 ud["Played"] = was_played
