@@ -259,10 +259,11 @@ class DetailPage(Page):
                 and item.get("Type") in PLAYABLE_TYPES
                 and (pos > 0 or components.is_watched(item))):
             # Marks the item unplayed (which is what clears its position)
-            # and plays from zero; the tile menu's entry of the same name
-            # does the same.
+            # and plays from zero; the tile menu's "Play from beginning"
+            # does the same. "Restart" on an action row, as the book pages
+            # have it: there the long label is the widest thing on screen.
             buttons.append(controls.action_btn(
-                "first_page", _("Play from beginning"), "btn-restart",
+                "first_page", _("Restart"), "btn-restart",
                 lambda: self._start(item, server, restart=True),
                 size=controls.PRIMARY_ROW))
         if not missing:
