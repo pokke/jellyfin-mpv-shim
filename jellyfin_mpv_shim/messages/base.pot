@@ -5248,10 +5248,11 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
-#. Button on a book or audiobook's page that starts it from the beginning
-#. rather than resuming. An imperative verb; it restarts the book, not the
+#. Button on a book, audiobook, film or episode page that starts it from the
+#. beginning rather than resuming; on a film or episode it also marks it as
+#. not watched. An imperative verb; it restarts the item, not the
 #. application.
-#: jellyfin_mpv_shim/mpvtk_browser/pages/books.py
+#: jellyfin_mpv_shim/mpvtk_browser/pages/books.py jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
 msgid "Restart"
 msgstr ""
 
@@ -6824,10 +6825,10 @@ msgstr ""
 msgid "Album"
 msgstr ""
 
-#. Button on a film or episode page, and entry on an item's menu, that starts
-#. the item over rather than resuming. It also marks the item as not watched,
-#. which clears its saved position. An imperative verb phrase.
-#: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py jellyfin_mpv_shim/mpvtk_browser/tiles.py
+#. Action on an item's menu that starts the item over rather than resuming.
+#. On a film or episode it also marks the item as not watched, which clears
+#. its saved position. An imperative verb phrase.
+#: jellyfin_mpv_shim/mpvtk_browser/tiles.py
 msgid "Play from beginning"
 msgstr ""
 
@@ -6853,7 +6854,14 @@ msgstr ""
 #. episode of that episode's season has been watched. An imperative verb
 #. phrase.
 #: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
-msgid "Mark season played"
+msgid "Mark season as watched"
+msgstr ""
+
+#. Entry in the More menu of an episode page that tells the server no
+#. episode of that episode's season has been watched, clearing their saved
+#. positions. An imperative verb phrase.
+#: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
+msgid "Mark season as unwatched"
 msgstr ""
 
 #. Action on an item's menu that opens the playlist chooser. An imperative
