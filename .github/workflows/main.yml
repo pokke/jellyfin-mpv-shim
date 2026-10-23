@@ -6,6 +6,7 @@ on:
       - master
       - main
       - working
+  workflow_dispatch:
 jobs:
   build-win64:
     runs-on: windows-latest
