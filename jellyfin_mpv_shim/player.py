@@ -2884,17 +2884,6 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         finally:
             self._start_in_progress = False
 
-    #: Serialises every write of ``http-header-fields`` against a load.
-    #: ``play()`` decides the header outside ``_lock``, so without this a
-    #: second, overlapping start rewrote the global option while the first was
-    #: inside ``_play_media`` -- our token to the first item's third-party
-    #: subtitle host, or no credential for a url that relied on the header.
-    #: ``_play_media`` holds it for the whole load, taken after ``_lock``; the
-    #: writers take only this and wait on nothing while holding it. A class
-    #: attribute so a PlayerManager built with ``__new__`` has one.
-    _auth_header_lock = threading.RLock()
-
-    @synchronous("_auth_header_lock")
     def _apply_auth_headers(self, video):
         """Hand mpv this server's Authorization header. True if it took.
 
@@ -3017,7 +3006,6 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         except Exception:
             log.debug("could not run the shader library lookup", exc_info=True)
 
-    @synchronous("_auth_header_lock")
     def _revoke_auth_header(self, video=None):
         """Take back a header installed before the stream's host was known.
 
@@ -3033,27 +3021,6 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
             self._player.http_header_fields = []
         except Exception:
             log.debug("could not clear http-header-fields", exc_info=True)
-
-    def _reassert_auth_header(self, video):
-        """Put this item's own header decision back on mpv before its load.
-
-        The url was built on ``video.auth_via_header``, but between that and
-        here an overlapping start may have written its own decision, and
-        ``_ensure_mpv`` may have re-created mpv with no header at all. Called
-        under ``_auth_header_lock`` from ``_play_media``, so nothing else can
-        change it again until the load is done.
-        """
-        fields = []
-        if video.auth_via_header:
-            try:
-                fields = ["Authorization: "
-                          + video.client.http._get_authenication_header()]
-            except Exception:
-                log.warning("could not rebuild the auth header", exc_info=True)
-        try:
-            self._player.http_header_fields = fields
-        except Exception:
-            log.debug("could not set http-header-fields", exc_info=True)
 
     def _forced_hwdec(self):
         """Whether a shader profile has named the decoder it requires.
@@ -3106,7 +3073,6 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         return False
 
     @synchronous("_lock")
-    @synchronous("_auth_header_lock")
     def _play_media(
         self,
         video: "Video_type",
@@ -3118,7 +3084,6 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         pause_stills: bool = True,
     ):
         self._ensure_mpv()
-        self._reassert_auth_header(video)
 
         self.pause_ignore = True
         self.do_not_handle_pause = True

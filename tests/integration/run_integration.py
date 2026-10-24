@@ -70,8 +70,6 @@ PER_BACKEND_FAKE = [
     # The start of playback, which is where the two backends' observer APIs
     # actually differ: the load wait dispatches on which one the handle has.
     "tests.integration.test_playback_start",
-    # Two starts overlapping: the global auth header held for a whole load.
-    "tests.integration.test_auth_header_overlap",
     "tests.integration.test_keyboard_controls",
     "tests.integration.test_lifecycle",
     "tests.integration.test_mpv_lifecycle",

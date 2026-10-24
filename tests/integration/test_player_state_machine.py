@@ -56,7 +56,6 @@ class FakeVideo:
         self._duration = duration
         self.parent = FakeParent(has_next, next_video)
         self.client = client
-        self.auth_via_header = False
         self.is_transcode = False
         self.aid = None
         self.sid = None
