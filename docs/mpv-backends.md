@@ -412,9 +412,11 @@ The governing rule is *stop intercepting keys whose meaning we did not change*.
   - **A claimed seek differs from mpv's in two ways, measured on libmpv 2.** It
     repeats while the key is held only because `section_lines` prefixes seek
     lines with `repeatable` (`script-message` does not auto-repeat: one fire for
-    a 1.2 s hold, against about 41 for mpv's own `seek -5`). And it is issued
-    through the client API, whose command flags carry no OSD bit, so mpv's seek
-    bar is not drawn (`flags=64`, against `73` for the binding).
+    a 1.2 s hold, against about 41 for mpv's own `seek -5`), and not inside a
+    SyncPlay group, where every repeat would be a seek request. And a command
+    sent through the client API carries no OSD bit (`flags=64`, against `73` for
+    the binding), so `_on_claimed_key` passes `osd=True` to `seek()`, which sends
+    `osd-auto seek` (`flags=65`) and mpv draws its seek bar.
   - The wheel is suppressed only while a SyncPlay group claims seek, never for
     this standing claim.
 - `skip_intro_on_seek` deliberately has no key. `_on_seeking` observes the

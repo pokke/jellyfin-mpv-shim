@@ -338,7 +338,7 @@ class KeyboardRoutingTest(unittest.TestCase):
                 pm._player.press_key("LEFT")
                 # The user's own amount and exactness, carried by the claim
                 # rather than replaced with a verb of ours.
-                seek.assert_called_once_with(-5.0, exact=False)
+                seek.assert_called_once_with(-5.0, exact=False, osd=True)
         finally:
             pm.claim_keys("seek", None)
 

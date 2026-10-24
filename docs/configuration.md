@@ -278,8 +278,8 @@ Under **Show advanced settings**:
     your `input.conf` for left or right is not used while this is set. The gamepad's right stick
     and the Jellyfin remote's left and right follow it too.
   - It wins over `use_web_seek` on those two keys. Applies without a restart.
-  - A key seek made through this setting repeats while the key is held, like mpv's own, but
-    does not draw mpv's seek bar.
+  - A key seek made through this setting repeats while the key is held, like mpv's own (but
+    not inside a SyncPlay group).
 - `skip_forward_secs` - Seconds the forward button on the controls and the right arrow key
   jump. Default: unset (`30` on the button, mpv's own distance on the key). Otherwise as
   `skip_back_secs`.

@@ -228,7 +228,8 @@ class DispatchTest(unittest.TestCase):
             [c.args or c.kwargs for c in seek.call_args_list],
             [(-5.0,), (1.0,)])
         self.assertEqual([c.kwargs for c in seek.call_args_list],
-                         [{"exact": False}, {"exact": True}])
+                         [{"exact": False, "osd": True},
+                          {"exact": True, "osd": True}])
 
     def test_fullscreen_records_the_users_intent(self):
         # The whole reason the key is claimed at all: a change that came
@@ -619,6 +620,52 @@ class WheelSeekIsOnlyAGroupsToLoseTest(unittest.TestCase):
         pm.claim_keys("syncplay", {PAUSE, SEEK})
         pm.claim_keys("syncplay", None)
         self.assertNotIn("WHEEL_LEFT", _defined(pm)[-1])
+
+
+class ClaimedSeekShowsTheOsdTest(unittest.TestCase):
+    """mpv's own arrow binding runs `seek` with osd-auto, which draws the
+    seek bar. The client API does not, so a claimed key's seek drew
+    nothing. Only the claimed-key path asks for it."""
+
+    def _pm(self, syncplay=False):
+        pm = _pm()
+        pm._player = mock.Mock(playback_abort=False, playback_time=10.0)
+        pm.syncplay = mock.Mock()
+        pm.syncplay.is_enabled.return_value = syncplay
+        pm.timeline_handle = mock.Mock()
+        pm.push_playstate = mock.Mock()
+        pm._player.input_bindings = list(ARROWS)
+        return pm
+
+    def _commands(self, pm):
+        return [c.args for c in pm._player.command.call_args_list]
+
+    def test_a_claimed_key_sends_osd_auto(self):
+        pm = self._pm()
+        pm.claim_keys("seek", {SEEK})
+        pm._player.command.reset_mock()
+        pm._on_claimed_key(SEEK, "LEFT")
+        pm._on_claimed_key(SEEK, "Shift+RIGHT")
+        self.assertEqual(self._commands(pm), [
+            ("osd-auto", "seek", -5.0), ("osd-auto", "seek", 1.0, "exact")])
+
+    def test_other_callers_are_unchanged(self):
+        pm = self._pm()
+        pm.seek(-10)
+        pm.seek(5, exact=True)
+        pm.seek(30, absolute=True)
+        self.assertEqual(self._commands(pm), [
+            ("seek", -10), ("seek", 5, "exact"),
+            ("seek", 30, "absolute+exact")])
+
+    def test_a_group_member_is_unchanged(self):
+        pm = self._pm(syncplay=True)
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        pm._player.command.reset_mock()
+        pm._on_claimed_key(SEEK, "LEFT")
+        self.assertEqual([c for c in self._commands(pm)
+                          if c[0] in ("seek", "osd-auto")], [])
+        pm.syncplay.seek_request.assert_called_once_with(5.0)
 
 
 class HeldSeekRepeatTest(unittest.TestCase):

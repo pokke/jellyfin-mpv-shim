@@ -2417,7 +2417,7 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
             elif settings.use_web_seek:
                 back, forward = self.get_seek_times()
                 amount = forward if amount > 0 else back
-            self.seek(amount, exact=exact)
+            self.seek(amount, exact=exact, osd=True)
         elif semantic == "fullscreen":
             want = (not self._player.fs) if arg is None else bool(arg)
             self.set_fullscreen(want, persist=True)
@@ -4198,9 +4198,11 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         absolute: bool = False,
         force: bool = False,
         exact: Optional[bool] = None,
+        osd: bool = False,
     ):
         """
-        Seek to ``offset`` seconds
+        Seek to ``offset`` seconds. ``osd`` draws mpv's seek bar, for the
+        relative seek outside a SyncPlay group.
         """
         if exact is None:
             exact = absolute
@@ -4231,10 +4233,14 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
                 else:
                     if self.syncplay.is_enabled():
                         self.last_seek = self._player.playback_time + offset
+                    # The client API does not apply osd-auto the way an
+                    # input.conf binding does, so a seek that stands in
+                    # for one asks for it, or draws no seek bar.
+                    cmd = ["osd-auto", "seek"] if osd else ["seek"]
                     if exact:
-                        self._player.command("seek", offset, "exact")
+                        self._player.command(*cmd, offset, "exact")
                     else:
-                        self._player.command("seek", offset)
+                        self._player.command(*cmd, offset)
         self.timeline_handle()
         self.push_playstate()
 
