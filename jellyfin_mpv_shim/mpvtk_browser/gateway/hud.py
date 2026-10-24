@@ -91,6 +91,44 @@ class HudMixin(GatewayCore):
     def set_speed(self, speed):
         self._act(lambda pm: setattr(pm._player, "speed", float(speed)))
 
+    def get_sub_delay(self):
+        """Current subtitle delay in seconds (0.0 when unknown)."""
+        from ...player import playerManager
+        try:
+            return float(playerManager._player.sub_delay or 0.0)
+        except Exception:
+            return 0.0
+
+    def get_audio_delay(self):
+        """Current audio delay in seconds (0.0 when unknown)."""
+        from ...player import playerManager
+        try:
+            return float(playerManager._player.audio_delay or 0.0)
+        except Exception:
+            return 0.0
+
+    def adjust_sub_delay(self, step):
+        """``add``, not read-then-write: `_act` may defer, and two presses
+        landing during one playback start would otherwise both start from
+        the same value and lose one."""
+        self._act(lambda pm: pm._player.command(
+            "add", "sub-delay", float(step)))
+
+    def adjust_audio_delay(self, step):
+        self._act(lambda pm: pm._player.command(
+            "add", "audio-delay", float(step)))
+
+    def reset_sub_delay(self):
+        """Back to the value this file started at -- the user's own
+        ``mpv.conf`` one, not zero. See `PlayerManager._delay_baseline`."""
+        self._act(lambda pm: setattr(
+            pm._player, "sub_delay", pm._delay_baseline.get("sub-delay", 0.0)))
+
+    def reset_audio_delay(self):
+        self._act(lambda pm: setattr(
+            pm._player, "audio_delay",
+            pm._delay_baseline.get("audio-delay", 0.0)))
+
     def get_aspect(self):
         """Current video-aspect-override (-1.0 = auto/unknown)."""
         from ...player import playerManager

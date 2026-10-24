@@ -385,6 +385,8 @@ class FakeMPV:
         self.volume = 100
         self.mute = False
         self.speed = 1.0
+        self.sub_delay = 0.0
+        self.audio_delay = 0.0
         self.cache_buffering_state = 0
         self.sub = "no"
         self.audio = "auto"

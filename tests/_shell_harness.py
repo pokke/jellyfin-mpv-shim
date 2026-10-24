@@ -1180,6 +1180,34 @@ class HudController(FakeController):
     def hud_menu_state(self):
         return self.menu_state
 
+    #: Seconds, as mpv holds them. Kept as state and moved by the adjust
+    #: calls below -- a recorder alone would leave the row's value frozen at
+    #: zero, so nothing could show the menu following the change.
+    sub_delay = 0.0
+    audio_delay = 0.0
+
+    def get_sub_delay(self):
+        return self.sub_delay
+
+    def get_audio_delay(self):
+        return self.audio_delay
+
+    def adjust_sub_delay(self, step):
+        self.sub_delay += step
+        self.transport.append(("adjust_sub_delay", (step,)))
+
+    def adjust_audio_delay(self, step):
+        self.audio_delay += step
+        self.transport.append(("adjust_audio_delay", (step,)))
+
+    def reset_sub_delay(self):
+        self.sub_delay = 0.0
+        self.transport.append(("reset_sub_delay", ()))
+
+    def reset_audio_delay(self):
+        self.audio_delay = 0.0
+        self.transport.append(("reset_audio_delay", ()))
+
     def chapters(self):
         return list(self.chapter_list)
 
