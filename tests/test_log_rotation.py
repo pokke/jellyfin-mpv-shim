@@ -71,7 +71,7 @@ class LogRotationTest(unittest.TestCase):
     def test_an_empty_log_does_not_clobber_the_previous_one(self):
         with open(self.prev, "w", encoding="utf-8") as fh:
             fh.write("run one\n")
-        open(self.log, "w").close()
+        open(self.log, "w", encoding="utf-8").close()
         self._run("run three")
         self.assertIn("run one", self._read(self.prev))
 

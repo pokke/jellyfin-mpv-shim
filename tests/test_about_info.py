@@ -60,7 +60,8 @@ class AboutInfoTest(unittest.TestCase):
 
     def test_it_says_whether_the_previous_log_exists(self):
         self.assertFalse(self._info()["previous_log_exists"])
-        with open(os.path.join(self.dir, PREVIOUS_LOG), "w") as fh:
+        with open(os.path.join(self.dir, PREVIOUS_LOG), "w",
+                  encoding="utf-8") as fh:
             fh.write("x")
         self.assertTrue(self._info()["previous_log_exists"])
 
