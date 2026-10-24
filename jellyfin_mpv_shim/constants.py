@@ -126,3 +126,13 @@ CAPABILITIES = {
         "PlayMediaSource",
     ],
 }
+
+# A fork build is told apart by a suffix stamped at build time; see fork.py.
+# Last in the file, and indented, so that CLIENT_VERSION stays one line at the
+# left margin for the greps in gen_pkg.sh and artifacts.sh and for the static
+# read setuptools does.
+from . import fork
+
+if fork.SUFFIX:
+    CLIENT_VERSION = fork.display_version(CLIENT_VERSION)
+    USER_AGENT = "Jellyfin-MPV-Shim/%s" % CLIENT_VERSION

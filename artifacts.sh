@@ -3,6 +3,8 @@
 # section 1. LEGACY64 is a different thing and lands in publish/Installer.
 mkdir -p publish publish/Installer publish/Debug publish/Flatpak
 version=$(cat jellyfin_mpv_shim/constants.py | grep '^CLIENT_VERSION' | cut -d '"' -f 2)
+# A fork build's stamp (tools/stamp_fork_build.py) joins the name; "+" is not safe in a release asset name.
+version+=$(grep '^SUFFIX' jellyfin_mpv_shim/_fork_build.py 2>/dev/null | cut -d '"' -f 2 | tr + -)
 if [[ "$1" == "standard" ]]
 then
     cp dist/jellyfin-mpv-shim_version_installer.exe publish/Installer/jellyfin-mpv-shim_${version}_installer.exe || exit 1

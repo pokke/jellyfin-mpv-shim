@@ -258,5 +258,8 @@ then
     mkdir build/ dist/
     echo "Building release package."
     python3 -m build > /dev/null
+elif [[ "$JMS_FORK_BUILD" != "" ]]
+then
+    find_python && "$PYTHON" tools/stamp_fork_build.py || exit 1
 fi
 

@@ -26,3 +26,6 @@ repo
 # input like mpv-2.dll, not a source file.
 fribidi-0.dll
 build/fribidi/
+
+# Built by tools/stamp_fork_build.py for a fork build; see fork.py.
+jellyfin_mpv_shim/_fork_build.py

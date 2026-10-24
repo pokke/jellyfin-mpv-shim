@@ -1,0 +1,47 @@
+name: release
+
+# Pushing a tag like v3.3.0-pokke.5 builds the fork (main.yml) and attaches the
+# Windows x64 installer to a GitHub release of that tag. The tag must name the
+# version constants.py is at: tools/stamp_fork_build.py refuses it otherwise.
+on:
+  push:
+    tags:
+      - 'v[0-9]*-pokke.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Build identity: a tag such as v3.3.0-pokke.5, or a number'
+        required: false
+        type: string
+
+# One release per ref at a time, and a running one is never cancelled half way
+# through publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/main.yml
+    with:
+      tag: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+    permissions:
+      contents: read
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Download the Windows installer
+      uses: actions/download-artifact@v7
+      with:
+        name: windows
+        path: release-files
+    - name: Create the release
+      run: |
+        gh release create "$GITHUB_REF_NAME" release-files/*.exe \
+          -R "$GITHUB_REPOSITORY" --verify-tag --generate-notes
