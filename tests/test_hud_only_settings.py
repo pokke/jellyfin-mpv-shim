@@ -103,6 +103,16 @@ class NotHiddenTest(unittest.TestCase):
             with self.subTest(style=style):
                 self.assertIn("mouse_chapter_nav", _shown(style))
 
+    def test_the_skip_distances_sit_in_player_controls(self):
+        with mock.patch.multiple(settings, osc_style="mpvtk",
+                                 enable_gui=True):
+            groups = dict(cfg.sections())
+        keys = groups["Player Controls"]
+        self.assertIn("skip_back_secs", keys)
+        self.assertIn("skip_forward_secs", keys)
+        self.assertEqual(keys.index("skip_forward_secs"),
+                         keys.index("skip_back_secs") + 1)
+
     def test_trickplay_fast_mode_always_shows(self):
         """thumbfast is loaded for both OSCs."""
         self.assertIn("trickplay_fast_mode", _shown("mpv"))

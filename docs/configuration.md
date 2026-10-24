@@ -269,6 +269,11 @@ Under **Show advanced settings**:
 - `mouse_click_pauses` - Left click on the video pauses. Default: `true`
   - Off restores mpv's behaviour: drag the video to move the window, right click to pause.
     Double click is fullscreen either way.
+- `skip_back_secs` - Seconds the back button on the controls jumps. Default: unset (`10`).
+  - Blank keeps the default. A value under 1 is treated as blank. The button shows a numbered
+    icon for 5, 10 and 30 seconds and a rewind icon for any other distance.
+- `skip_forward_secs` - Seconds the forward button on the controls jumps. Default: unset
+  (`30`). Otherwise as `skip_back_secs`.
 - `trickplay_fast_mode` - Load every seek preview up front. Default: `false`
   - Previews never wait, at the cost of hundreds of MB of memory on a long video. See
     [Seek previews](#seek-previews-trickplay).

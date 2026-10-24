@@ -39,7 +39,11 @@ ICON_NAMES = [
     "skip_next",
     "fast_rewind",
     "fast_forward",
+    "replay_5",
     "replay_10",
+    "replay_30",
+    "forward_5",
+    "forward_10",
     "forward_30",
     "shuffle",
     "repeat",
@@ -205,7 +209,12 @@ def circle_to_path(cx, cy, r):
             % (cx - r, cy, r, r, 2 * r, r, r, -2 * r))
 
 
-_LEADING_M = re.compile(r"\A\s*m\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*(.*)\Z", re.S)
+# A number is `13.9` and not "everything made of digits and dots": compact
+# path data runs `13.9.25` together, and a greedy `[\d.]+` read that as one
+# token (replay_5 is authored that way).
+_NUM = r"-?(?:\d+\.?\d*|\.\d+)"
+_LEADING_M = re.compile(r"\A\s*m\s*(%s)[\s,]+(%s)\s*(.*)\Z" % (_NUM, _NUM),
+                        re.S)
 
 
 def absolutize_start(d):

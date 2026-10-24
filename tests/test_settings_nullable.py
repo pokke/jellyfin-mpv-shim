@@ -141,6 +141,17 @@ class SettingsFormNullableTest(unittest.TestCase):
         self.assertTrue(self.cfg.set_setting("mpv_ext_path", ""))
         self.assertIsNone(self.settings.mpv_ext_path)
 
+    def test_the_skip_distances_save_a_number_and_clear_to_none(self):
+        """Blank is "keep the defaults", so clearing the field has to land
+        on None and not on "" or 0."""
+        for key in ("skip_back_secs", "skip_forward_secs"):
+            with self.subTest(key=key):
+                self.assertTrue(self.cfg.is_nullable(key))
+                self.assertTrue(self.cfg.set_setting(key, "20"))
+                self.assertEqual(getattr(self.settings, key), 20)
+                self.assertTrue(self.cfg.set_setting(key, ""))
+                self.assertIsNone(getattr(self.settings, key))
+
     def test_empty_is_still_refused_for_a_non_nullable_int(self):
         self.assertFalse(self.cfg.set_setting("local_kbps", ""))
 

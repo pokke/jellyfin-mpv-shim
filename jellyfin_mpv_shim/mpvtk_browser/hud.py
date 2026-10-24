@@ -244,6 +244,31 @@ def _chapter_jump(b, direction):
     b._ctl(lambda c: c.chapter_seek(direction))
 
 
+#: What the step buttons move by while Skip Back / Skip Forward are blank,
+#: keyed by `back`.
+_SKIP_DEFAULT = {True: 10, False: 30}
+
+
+def _skip_distance(back):
+    """Seconds the back (``True``) or forward step button moves, read from
+    the setting each time it is asked -- at draw for the icon and tooltip,
+    and again at click so a button drawn before a change still obeys it.
+
+    A value under 1 (or not a number) is read as blank."""
+    value = settings.skip_back_secs if back else settings.skip_forward_secs
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+        return value
+    return _SKIP_DEFAULT[back]
+
+
+def _skip_icon(back, secs):
+    """The Material icon with the number on it, where one exists (5, 10 and
+    30 seconds); the scan arrows for any other distance."""
+    if secs in (5, 10, 30):
+        return ("replay_%d" if back else "forward_%d") % secs
+    return "fast_rewind" if back else "fast_forward"
+
+
 def _pickers(b, menu_state, pos, chapters, icon_size=None):
     """Right-aligned controls: chapters, audio/subtitle tracks, quality —
     each only when there is a real choice to make.
@@ -1000,10 +1025,11 @@ def build_hud(b, size):
             lambda: _chapter_jump(b, -1),
             tip=_("Previous chapter"))))
     if not photo:
+        back = _skip_distance(True)
         items.append(("seek_btns", tbtn(
-            "replay_10", "hud-seek-back",
-            lambda: b._ctl(lambda c: c.seek_relative(-10)),
-            tip=_("Back 10 Seconds"), repeat=True)))
+            _skip_icon(True, back), "hud-seek-back",
+            lambda: b._ctl(lambda c: c.seek_relative(-_skip_distance(True))),
+            tip=_("Back %d seconds") % back, repeat=True)))
     # DOWN off the seek bar lands here, whatever else the current width
     # is drawing beside it. Without the gravity the arrow picks whichever
     # button happens to sit nearest the middle, and which one that is
@@ -1022,10 +1048,11 @@ def build_hud(b, size):
         pp, "hud-pp", lambda: b._ctl(lambda c: c.toggle_pause()),
         icon_size=36, nav_gravity=not photo)))
     if not photo:
+        fwd = _skip_distance(False)
         items.append(("seek_btns", tbtn(
-            "forward_30", "hud-seek-fwd",
-            lambda: b._ctl(lambda c: c.seek_relative(30)),
-            tip=_("Forward 30 Seconds"), repeat=True)))
+            _skip_icon(False, fwd), "hud-seek-fwd",
+            lambda: b._ctl(lambda c: c.seek_relative(_skip_distance(False))),
+            tip=_("Forward %d seconds") % fwd, repeat=True)))
     if chapters:
         items.append(("ch_btns", tbtn(
             "redo", "hud-ch-next",

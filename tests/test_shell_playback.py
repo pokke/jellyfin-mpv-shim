@@ -614,6 +614,81 @@ class TestPlaybackHudLayout(unittest.TestCase):
         self.assertIn(("seek_relative", (-10,)), ctl.transport)
         self.assertIn(("seek_relative", (30,)), ctl.transport)
 
+    def _skip_buttons(self, b, **opts):
+        """``(icon, tip)`` of the two step buttons, as handed to the
+        Button widget (a built scene carries only the rasterized path)."""
+        from unittest import mock
+        from jellyfin_mpv_shim.conf import settings
+        from jellyfin_mpv_shim.mpvtk_browser import hud
+
+        seen = {}
+        real = hud.Button
+
+        def recording(*a, **kw):
+            if kw.get("id") in ("hud-seek-back", "hud-seek-fwd"):
+                seen[kw["id"]] = (kw["icon"], kw["tip"])
+            return real(*a, **kw)
+
+        with mock.patch.multiple(settings, **opts), \
+                mock.patch.object(hud, "Button", recording):
+            build_scene(b, (1280, 720))
+        return seen["hud-seek-back"], seen["hud-seek-fwd"]
+
+    def test_skip_buttons_default_to_10_back_and_30_forward(self):
+        b, _ctl = self._browser()
+        back, fwd = self._skip_buttons(
+            b, skip_back_secs=None, skip_forward_secs=None)
+        self.assertEqual(back, ("replay_10", "Back 10 seconds"))
+        self.assertEqual(fwd, ("forward_30", "Forward 30 seconds"))
+
+    def test_skip_buttons_draw_the_numbered_icon_when_there_is_one(self):
+        b, _ctl = self._browser()
+        for secs in (5, 10, 30):
+            with self.subTest(secs=secs):
+                back, fwd = self._skip_buttons(
+                    b, skip_back_secs=secs, skip_forward_secs=secs)
+                self.assertEqual(
+                    back, ("replay_%d" % secs, "Back %d seconds" % secs))
+                self.assertEqual(
+                    fwd, ("forward_%d" % secs, "Forward %d seconds" % secs))
+
+    def test_skip_buttons_fall_back_to_scan_icons_for_other_values(self):
+        b, _ctl = self._browser()
+        back, fwd = self._skip_buttons(
+            b, skip_back_secs=15, skip_forward_secs=45)
+        self.assertEqual(back, ("fast_rewind", "Back 15 seconds"))
+        self.assertEqual(fwd, ("fast_forward", "Forward 45 seconds"))
+
+    def test_skip_buttons_treat_an_unusable_value_as_unset(self):
+        b, _ctl = self._browser()
+        for bad in (0, -3):
+            with self.subTest(value=bad):
+                back, fwd = self._skip_buttons(
+                    b, skip_back_secs=bad, skip_forward_secs=bad)
+                self.assertEqual(back[0], "replay_10")
+                self.assertEqual(fwd[0], "forward_30")
+
+    def test_skip_buttons_read_the_setting_when_clicked(self):
+        """One built scene, three clicks, the setting changing between
+        them: the handler must not carry the distance it was drawn with
+        (the standing footgun in CLAUDE.md)."""
+        from unittest import mock
+        from jellyfin_mpv_shim.conf import settings
+
+        b, ctl = self._browser()
+        _nodes, handlers = build_scene(b, (1280, 720))
+        handlers["hud-seek-back"]["click"]()
+        with mock.patch.multiple(settings, skip_back_secs=20,
+                                 skip_forward_secs=45):
+            handlers["hud-seek-back"]["click"]()
+            handlers["hud-seek-fwd"]["click"]()
+        with mock.patch.multiple(settings, skip_back_secs=None,
+                                 skip_forward_secs=None):
+            handlers["hud-seek-fwd"]["click"]()
+        self.assertEqual(
+            [a for n, a in ctl.transport if n == "seek_relative"],
+            [(-10,), (-20,), (45,), (30,)])
+
     def test_chapter_jump_buttons(self):
         """The buttons ask the player for a chapter rather than working the
         target out and seeking there: one definition of "previous chapter"

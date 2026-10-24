@@ -2508,6 +2508,18 @@ msgstr ""
 msgid "Left Click Pauses Playback"
 msgstr ""
 
+#. Label of the number box for the "skip_back_secs" setting
+#. (Settings > Playback > Player Controls). The number is seconds.
+#: jellyfin_mpv_shim/mpvtk_browser/config.py
+msgid "Skip Back (seconds)"
+msgstr ""
+
+#. Label of the number box for the "skip_forward_secs" setting
+#. (Settings > Playback > Player Controls). The number is seconds.
+#: jellyfin_mpv_shim/mpvtk_browser/config.py
+msgid "Skip Forward (seconds)"
+msgstr ""
+
 #. Label of the checkbox for the "detail_poster" setting (Settings > Browse
 #. > Library Browser).
 #: jellyfin_mpv_shim/mpvtk_browser/config.py
@@ -3063,6 +3075,24 @@ msgid ""
 "Off gives MPV's own mouse behaviour instead: drag the video to move the "
 "window, and the right button does whatever your MPV config gives it. Double "
 "click is full screen either way."
+msgstr ""
+
+#. Explanation shown under the "Skip Back (seconds)" setting
+#. (Settings > Playback > Player Controls). Blank is allowed and keeps
+#. the built-in distance, which is the number in the text.
+#: jellyfin_mpv_shim/mpvtk_browser/config.py
+msgid ""
+"How far the back button on the player controls jumps. Leave it blank for 10 "
+"seconds."
+msgstr ""
+
+#. Explanation shown under the "Skip Forward (seconds)" setting
+#. (Settings > Playback > Player Controls). Blank is allowed and keeps
+#. the built-in distance, which is the number in the text.
+#: jellyfin_mpv_shim/mpvtk_browser/config.py
+msgid ""
+"How far the forward button on the player controls jumps. Leave it blank for "
+"30 seconds."
 msgstr ""
 
 #. Explanation shown under the "Deinterlace Automatically" setting
@@ -4599,14 +4629,22 @@ msgstr ""
 msgid "Previous chapter"
 msgstr ""
 
-#. Tooltip of the rewind button on the playback controls.
+#. Tooltip of the rewind button on the playback controls and on the
+#. now-playing bar. %d is how many seconds it jumps; on the playback
+#. controls that is the "skip_back_secs" setting.
 #: jellyfin_mpv_shim/mpvtk_browser/hud.py
-msgid "Back 10 Seconds"
+#: jellyfin_mpv_shim/mpvtk_browser/music.py
+#, python-format
+msgid "Back %d seconds"
 msgstr ""
 
-#. Tooltip of the fast-forward button on the playback controls.
+#. Tooltip of the fast-forward button on the playback controls and on the
+#. now-playing bar. %d is how many seconds it jumps; on the playback
+#. controls that is the "skip_forward_secs" setting.
 #: jellyfin_mpv_shim/mpvtk_browser/hud.py
-msgid "Forward 30 Seconds"
+#: jellyfin_mpv_shim/mpvtk_browser/music.py
+#, python-format
+msgid "Forward %d seconds"
 msgstr ""
 
 #. Tooltip of the button on the playback controls that jumps to the next
@@ -5159,13 +5197,6 @@ msgstr ""
 msgid "Repeat off"
 msgstr ""
 
-#. Tooltip of the rewind button on the now-playing bar. %d is how many
-#. seconds it jumps.
-#: jellyfin_mpv_shim/mpvtk_browser/music.py
-#, python-format
-msgid "Back %d seconds"
-msgstr ""
-
 #. Action on an item's menu that starts it. An imperative verb, and it must
 #. not read the same as "Played": in one language it did, and a filter row
 #. came out saying "Not played / Play".
@@ -5182,13 +5213,6 @@ msgstr ""
 #. imperative verb.
 #: jellyfin_mpv_shim/mpvtk_browser/music.py
 msgid "Pause"
-msgstr ""
-
-#. Tooltip of the fast-forward button on the now-playing bar. %d is how
-#. many seconds it jumps.
-#: jellyfin_mpv_shim/mpvtk_browser/music.py
-#, python-format
-msgid "Forward %d seconds"
 msgstr ""
 
 #. Tooltip of the button on the now-playing bar that ends playback. An

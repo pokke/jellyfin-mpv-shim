@@ -102,7 +102,8 @@ BACKGROUND_DEPENDENT = ("start_minimized",)
 #: chosen and go when it is left -- which is right: the form describes the
 #: configuration, and the restart banner covers the gap.
 HUD_ONLY = ("hud_grab_keys", "hud_wake_key", "hud_scrim", "hud_autohide",
-            "hud_hide_secs", "hud_auto_scale", "mouse_click_pauses")
+            "hud_hide_secs", "hud_auto_scale", "mouse_click_pauses",
+            "skip_back_secs", "skip_forward_secs")
 
 #: Settings that tune trickplay and so do nothing with `thumbnail_enable`
 #: off. Hidden rather than disabled, per docs/settings-curation.md §2.
@@ -269,6 +270,7 @@ TAB_SECTIONS = {
                                 "hud_scrim", "hud_autohide", "hud_hide_secs",
                                 "hud_auto_scale",
                                 "mouse_chapter_nav", "mouse_click_pauses",
+                                "skip_back_secs", "skip_forward_secs",
                                 "trickplay_fast_mode"]),
         (_("Playback"), ["auto_play", "hwdec", "network_buffer",
                          "always_transcode",
@@ -658,6 +660,8 @@ LABEL_OVERRIDES = {
     "sync_path": _("Download Folder"),
     "prefer_downloaded": _("Prefer Downloaded Copy"),
     "mouse_click_pauses": _("Left Click Pauses Playback"),
+    "skip_back_secs": _("Skip Back (seconds)"),
+    "skip_forward_secs": _("Skip Forward (seconds)"),
     "detail_poster": _("Show Posters on Detail Pages"),
     "detail_episode_image": _("Show Episode Thumbnails on Detail Pages"),
     "hwdec": _("Hardware Decoding"),
@@ -884,6 +888,11 @@ NOTES = {
                             "right button does whatever your MPV config "
                             "gives it. Double click is full screen either "
                             "way."),
+    # Blank is a value with a meaning, and the label cannot say what it is.
+    "skip_back_secs": _("How far the back button on the player controls "
+                        "jumps. Leave it blank for 10 seconds."),
+    "skip_forward_secs": _("How far the forward button on the player "
+                           "controls jumps. Leave it blank for 30 seconds."),
     # The reason this is off by default, in the place someone deciding
     # whether to change it is looking. mpv's own manual says to
     # "acknowledge that this may cause problems"; the tail it breaks for

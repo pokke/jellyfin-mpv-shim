@@ -458,6 +458,11 @@ class Settings(SettingsBase):
     mpv_ext_start_retry_delay_ms: int = 3000
     mpv_ext_no_ovr: bool = False
     use_web_seek: bool = False
+    # Seconds the player's skip back / skip forward steps move. Blank keeps
+    # today's behaviour: the HUD's buttons step -10 / +30. A value under 1
+    # is read as blank.
+    skip_back_secs: Optional[int] = None
+    skip_forward_secs: Optional[int] = None
     # Locked-down cast-target mode: the cast screen is the only page, and
     # the library cannot be reached from the machine itself. Replaces
     # display_mirroring, which was a *second* UI rather than a page and so
