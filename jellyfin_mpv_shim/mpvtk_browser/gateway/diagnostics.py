@@ -74,6 +74,24 @@ class DiagnosticsMixin(GatewayCore):
         from ...constants import APP_NAME
         return os.path.dirname(conffile.get(APP_NAME, "conf.json"))
 
+    def about_info(self):
+        """Version and log locations, for the Logs tab. Never raises: it is
+        called while drawing, and a missing path is not worth a blank tab."""
+        from ... import constants
+        from ...restart import PREVIOUS_LOG
+        info = {"version": constants.CLIENT_VERSION, "config_dir": None,
+                "log": None, "previous_log": None,
+                "previous_log_exists": False}
+        try:
+            info["config_dir"] = self.config_dir()
+            info["log"] = os.path.join(info["config_dir"], "log.txt")
+            info["previous_log"] = os.path.join(info["config_dir"],
+                                                PREVIOUS_LOG)
+            info["previous_log_exists"] = os.path.exists(info["previous_log"])
+        except Exception:
+            log.debug("about_info failed", exc_info=True)
+        return info
+
     def copy_text(self, text):
         """Copy to the system clipboard, falling back to a file.
 

@@ -1,4 +1,5 @@
 import logging
+import os
 from collections import deque
 import re
 
@@ -132,6 +133,19 @@ def configure_log_file(destination: str, level: str = "info"):
     lvl = level_mapping[level.upper()]
     if lvl < root_logger.level:
         root_logger.level = lvl
+
+    # mode="w" below truncates, so keep the previous run first: it is the log
+    # that explains why that run died. One generation, same name restart.py
+    # uses. An empty file is not worth keeping over a real one.
+    try:
+        if os.path.exists(destination) and os.path.getsize(destination):
+            from .restart import PREVIOUS_LOG
+
+            os.replace(destination, os.path.join(
+                os.path.dirname(destination), PREVIOUS_LOG))
+    except OSError:
+        logging.getLogger(__name__).debug(
+            "could not keep the previous log", exc_info=True)
 
     handler = logging.FileHandler(destination, mode="w")
     # Never allow logging API keys to a file.
