@@ -4362,9 +4362,8 @@ msgstr ""
 #. The next unwatched episode of a series being followed. The name of a
 #. home-screen row, and the heading of the same on a series or season page.
 #. Jellyfin Web uses the same two words.
+#: jellyfin_mpv_shim/mpvtk_browser/components/labels.py
 #: jellyfin_mpv_shim/mpvtk_browser/home_sections.py
-#: jellyfin_mpv_shim/mpvtk_browser/pages/season.py
-#: jellyfin_mpv_shim/mpvtk_browser/pages/series.py
 #: jellyfin_mpv_shim/mpvtk_browser/repository.py
 msgid "Next Up"
 msgstr ""
@@ -7573,4 +7572,75 @@ msgstr ""
 #. applied.
 #: jellyfin_mpv_shim/video_profile.py
 msgid "Select Shader Profile"
+msgstr ""
+
+#. Label of the play button on a TV series or season page. %s is the next
+#. episode to watch as season and episode number, e.g. S2E5.
+#: jellyfin_mpv_shim/mpvtk_browser/components/labels.py
+#, python-format
+msgid "Next Up: %s"
+msgstr ""
+
+#. Tooltip of an icon-only button (left chevron) on an episode's detail page;
+#. opens the episode before this one.
+#: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
+msgid "Previous episode"
+msgstr ""
+
+#. Tooltip of an icon-only button (right chevron) on an episode's detail page;
+#. opens the episode after this one.
+#: jellyfin_mpv_shim/mpvtk_browser/pages/detail.py
+msgid "Next episode"
+msgstr ""
+
+#. Row in the playback gear menu that opens a submenu to shift subtitle
+#. timing earlier or later. Shown with the current value after it.
+#: jellyfin_mpv_shim/mpvtk_browser/hud.py
+msgid "Subtitle Offset"
+msgstr ""
+
+#. Row in the playback gear menu that opens a submenu to shift audio timing
+#. relative to the video.
+#: jellyfin_mpv_shim/mpvtk_browser/hud.py
+msgid "Audio Offset"
+msgstr ""
+
+#. Signed millisecond offset: the label of a row that shifts subtitle or audio
+#. timing, and the current value on the menu row. %+d is a signed integer such
+#. as +100 or -1000; keep the sign.
+#: jellyfin_mpv_shim/mpvtk_browser/hud.py
+#, python-format
+msgid "%+d ms"
+msgstr ""
+
+#. Current subtitle or audio offset when no shift is applied.
+#: jellyfin_mpv_shim/mpvtk_browser/hud.py
+msgid "0 ms"
+msgstr ""
+
+#. Row in the subtitle or audio offset menu that puts back the offset this file
+#. started with, which is not always zero. An imperative verb.
+#: jellyfin_mpv_shim/mpvtk_browser/hud.py
+msgid "Reset"
+msgstr ""
+
+#. Settings > Logs tab, caption line under the header. %s is the application
+#. version, e.g. 3.3.0.
+#: jellyfin_mpv_shim/mpvtk_browser/settings/logs.py
+#, python-format
+msgid "Version %s"
+msgstr ""
+
+#. Settings > Logs tab, caption line. %s is the full path of the current log
+#. file.
+#: jellyfin_mpv_shim/mpvtk_browser/settings/logs.py
+#, python-format
+msgid "Log file: %s"
+msgstr ""
+
+#. Settings > Logs tab, caption line shown only when a previous run's log
+#. exists. %s is the full path of that file.
+#: jellyfin_mpv_shim/mpvtk_browser/settings/logs.py
+#, python-format
+msgid "Previous log: %s"
 msgstr ""
