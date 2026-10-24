@@ -2363,16 +2363,16 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         # Only for a group: the standing seek claim (web seek, a skip
         # distance) has nobody to desync, and used to take the wheel's seek
         # away.
-        suppress = ([] if keysweep.SEEK not in
-                    self._key_claims.get("syncplay", ())
-                    else self._swept_pointers())
+        in_group = keysweep.SEEK in self._key_claims.get("syncplay", ())
+        suppress = self._swept_pointers() if in_group else []
         try:
             if not claims and not suppress:
                 self._player.command("disable-section", self.KEY_SECTION)
                 return
             self._player.command(
                 "define-section", self.KEY_SECTION,
-                keysweep.section_lines(claims, self.KEY_MESSAGE, suppress),
+                keysweep.section_lines(claims, self.KEY_MESSAGE, suppress,
+                                       repeat_seek=not in_group),
                 "force")
             self._player.command("enable-section", self.KEY_SECTION,
                                  self.SECTION_FLAGS)

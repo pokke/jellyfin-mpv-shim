@@ -250,7 +250,7 @@ def pointer_keys(bindings, wanted):
     return sorted(out)
 
 
-def section_lines(claims, message, suppress=()):
+def section_lines(claims, message, suppress=(), repeat_seek=True):
     """The body of a ``define-section``: one line per claimed key, routing
     to ``script-message <message> <semantic> <key>``.
 
@@ -261,9 +261,12 @@ def section_lines(claims, message, suppress=()):
     # `repeatable` on a seek only. mpv auto-repeats a held key for commands
     # that allow it and `script-message` is not one, so a claimed LEFT fired
     # once per press where mpv's own `seek -5` repeats for as long as it is
-    # held. Not on pause or fullscreen, which should not repeat.
+    # held. Not on pause or fullscreen, which should not repeat, and not for
+    # a SyncPlay group (`repeat_seek` False): every repeat would be a seek
+    # request made from a stale playback time.
     lines = ["%s %sscript-message %s %s %s"
-             % (key, "repeatable " if semantic == SEEK else "", message,
+             % (key, "repeatable " if semantic == SEEK and repeat_seek
+                else "", message,
                 semantic, shlex.quote(key))
              for key, semantic, _arg in claims]
     # `ignore` rather than a message: these are suppressed for the duration

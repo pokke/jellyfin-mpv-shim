@@ -109,7 +109,7 @@ class ClaimLifecycleTest(unittest.TestCase):
         body = _defined(pm)[-1]
         self.assertIn("SPACE script-message", body)
         self.assertIn("p script-message", body)
-        self.assertIn("LEFT repeatable script-message", body)
+        self.assertIn("LEFT script-message", body)
         self.assertNotIn("f script-message", body, "fullscreen not claimed")
         self.assertNotIn("m script-message", body, "mute is not ours")
         self.assertTrue(_sections(pm)[PlayerManager.KEY_SECTION])
@@ -619,6 +619,34 @@ class WheelSeekIsOnlyAGroupsToLoseTest(unittest.TestCase):
         pm.claim_keys("syncplay", {PAUSE, SEEK})
         pm.claim_keys("syncplay", None)
         self.assertNotIn("WHEEL_LEFT", _defined(pm)[-1])
+
+
+class HeldSeekRepeatTest(unittest.TestCase):
+    """A held, claimed seek repeats like mpv's own -- except in a SyncPlay
+    group, where each repeat would be a seek request made from a stale
+    playback time, about forty a second."""
+
+    def _left(self, pm):
+        return next(l for l in _defined(pm)[-1].splitlines()
+                    if l.startswith("LEFT "))
+
+    def test_the_standing_seek_claim_repeats(self):
+        pm = _pm()
+        pm.claim_keys("seek", {SEEK})
+        self.assertIn("repeatable", self._left(pm))
+
+    def test_a_group_claim_does_not(self):
+        pm = _pm()
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        self.assertNotIn("repeatable", self._left(pm))
+
+    def test_a_group_wins_over_the_standing_claim_and_gives_it_back(self):
+        pm = _pm()
+        pm.claim_keys("seek", {SEEK})
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        self.assertNotIn("repeatable", self._left(pm))
+        pm.claim_keys("syncplay", None)
+        self.assertIn("repeatable", self._left(pm))
 
 
 class SeekClaimFollowsTheSettingTest(unittest.TestCase):
