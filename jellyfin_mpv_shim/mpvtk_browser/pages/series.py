@@ -5,11 +5,15 @@
 playlist, so it lives in ``components/detail.py``.
 """
 
+import logging
+
 from ...i18n import _
 from ...mpvtk.widgets import Column, Text, VScroll
 from .. import theme
-from ..components import chrome, controls, detail as detail_components
+from ..components import chrome, controls, detail as detail_components, labels
 from .base import Page
+
+log = logging.getLogger("mpvtk_browser.pages.series")
 
 
 class SeriesPage(Page):
@@ -28,9 +32,17 @@ class SeriesPage(Page):
                 similar = source.get_similar(srv, iid) or []
             except Exception:
                 pass   # offline / older server: just no row
+            next_up = None
+            try:
+                # Only names the button's episode, so a failed lookup costs
+                # "Next Up" instead of "Next Up: S2E5", not the page.
+                next_up = source.get_next_up(srv, iid)
+            except Exception:
+                log.debug("next up lookup failed", exc_info=True)
             item = source.get_item(srv, iid)
             return {
                 "item": item,
+                "next_up": next_up,
                 "seasons": source.get_seasons(srv, iid),
                 "similar": similar,
                 "may_refresh": actions.can_refresh_metadata(srv),
@@ -69,7 +81,8 @@ class SeriesPage(Page):
             self.ctx.actions, item, server, data.get("may_refresh"))
         blocks.append(self._series_actions(item, server, route["item_id"],
                                            trailers=data.get("trailers"),
-                                           more=more, avail=tiles.body_w(w)))
+                                           more=more, avail=tiles.body_w(w),
+                                           next_up=data.get("next_up")))
         text = chrome.overview(item)
         if text:
             blocks.append(chrome.paragraph(text, 18, tiles.body_w(w)))
@@ -117,10 +130,10 @@ class SeriesPage(Page):
         return Column(children, flex=1, align="stretch")
 
     def _series_actions(self, item, server, series_id, trailers=None,
-                        more=(), avail=0):
+                        more=(), avail=0, next_up=None):
         actions = self.ctx.actions
         btns = [controls.action_btn(
-            "play_arrow", _("Next Up"), "sa-nextup",
+            "play_arrow", labels.next_up_label(next_up), "sa-nextup",
             lambda: actions.play_next_up(series_id, server), primary=True),
             controls.action_btn(
                 "shuffle", _("Shuffle"), "sa-shuffle",

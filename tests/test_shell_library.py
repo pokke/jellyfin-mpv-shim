@@ -3114,6 +3114,287 @@ class TestSeasonPageShuffle(TestSeasonPageNextUp):
         nodes, _h = build_scene(b)
         self.assertNotIn("se-shuffle", ids(nodes))
 
+def _label_in(nodes, node_id):
+    """The text drawn inside the node ``node_id`` (a button), joined."""
+    box = next(n for n in nodes if n.get("id") == node_id)
+    return " ".join(
+        n["text"] for n in nodes
+        if n["t"] == "text"
+        and box["x"] <= n["x"] and n["x"] + n["w"] <= box["x"] + box["w"] + 1
+        and box["y"] <= n["y"] and n["y"] + n["h"] <= box["y"] + box["h"] + 1)
+
+
+class _CountingApp(StubHudApp):
+    """A renderer stand-in that counts the repaints it is asked for."""
+
+    def __init__(self):
+        super().__init__()
+        self.invalidations = 0
+
+    def invalidate(self, soon=False):
+        self.invalidations += 1
+
+
+class TestNextUpLabelNamesTheEpisode(unittest.TestCase):
+    """"Next Up: S2E5" on the series page and the season page, and the plain
+    "Next Up" when the episode cannot be named."""
+
+    def _series(self, app=None):
+        b = MpvtkBrowser(app=app, source=FakeSource(),
+                         controller=FakeController())
+        b._pool = _SyncPool()
+        b.server = "srv1"
+        route = {"kind": "series", "server": "srv1", "item_id": "sh1",
+                 "title": "Show"}
+        b.nav_stack = [route]
+        b._load_route(route)
+        return b, route
+
+    @staticmethod
+    def _ep(season, number, **kw):
+        return dict({"Id": "nu1", "Type": "Episode", "SeriesId": "sh1",
+                     "ParentIndexNumber": season, "IndexNumber": number}, **kw)
+
+    def test_the_series_button_names_the_episode(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 4)
+        b._load_route(b.route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up: S1E4")
+
+    def test_a_special_is_season_zero(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(0, 3)
+        b._load_route(b.route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up: S0E3")
+
+    def test_without_a_next_up_the_label_is_plain(self):
+        def boom(srv, sid):
+            raise OSError("server gone")
+
+        for answer in (lambda srv, sid: None, boom,
+                       lambda srv, sid: self._ep(None, 4),
+                       lambda srv, sid: self._ep(1, None)):
+            with self.subTest(answer=answer):
+                b, _r = self._series()
+                b.source.get_next_up = answer
+                b._load_route(b.route)
+                nodes, handlers = build_scene(b)
+                self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up")
+                self.assertIn("sa-nextup", handlers)
+
+    def test_the_season_button_names_the_episode(self):
+        b, route = TestSeasonPageNextUp()._season()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 2, Id="e2")
+        b._load_route(route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "se-nextup"), "Next Up: S1E2")
+
+    def test_the_label_follows_a_refresh(self):
+        """The property over several steps: whatever the server now says is
+        next is what the button says, every time, and each one repaints."""
+        app = _CountingApp()
+        b, _r = self._series(app)
+        for season, number in ((1, 5), (2, 1), (2, 2), (0, 1)):
+            b.source.get_next_up = (
+                lambda srv, sid, s=season, n=number: self._ep(s, n))
+            before = app.invalidations
+            self.assertTrue(b._refresh_current({"series"}, "srv1"))
+            self.assertGreater(app.invalidations, before,
+                               "the refresh landed without a repaint")
+            nodes, _h = build_scene(b)
+            self.assertEqual(_label_in(nodes, "sa-nextup"),
+                             "Next Up: S%dE%d" % (season, number))
+
+    def test_the_click_still_resolves_on_the_worker(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 4)
+        b._load_route(b.route)
+        _n, handlers = build_scene(b)
+        # What it plays is decided when it is pressed, not by the label.
+        b.source.get_next_up = lambda srv, sid: self._ep(3, 9, Id="later")
+        played = []
+        b._actions.play = lambda item, server, **kw: played.append(item["Id"])
+        handlers["sa-nextup"]["click"]()
+        self.assertEqual(played, ["later"])
+
+class TestEpisodeSiblingButtons(unittest.TestCase):
+    """Previous / Next episode on an Episode's detail page, in the order
+    playback advances (`get_series_queue`: across seasons, no missing or
+    unaired entries)."""
+
+    @staticmethod
+    def _ep(i, season=1, number=None, **kw):
+        number = i if number is None else number
+        return dict({"Id": "ep%s" % i, "Name": "Episode %s" % i,
+                     "Type": "Episode", "SeriesId": "sh1",
+                     "SeriesName": "A Show", "ParentIndexNumber": season,
+                     "IndexNumber": number}, **kw)
+
+    def _page(self, queue, current, queue_fn=None):
+        """A detail page for ``current`` (an episode DTO) whose series queue
+        is ``queue``. Returns ``(browser, calls)``, the latter every
+        ``get_series_queue`` request the page made."""
+        src = FakeSource()
+        src.items[current["Id"]] = current
+        calls = []
+
+        def series_queue(srv, series_id, start_item_id=None, limit=100):
+            calls.append((series_id, start_item_id, limit))
+            if queue_fn is not None:
+                return queue_fn()
+            return [dict(e) for e in queue]
+
+        src.get_series_queue = series_queue
+        b = MpvtkBrowser(app=None, source=src, controller=FakeController())
+        b._pool = _SyncPool()
+        b.server = "srv1"
+        b.navigate({"kind": "detail", "server": "srv1",
+                    "item_id": current["Id"], "title": current["Name"]})
+        return b, calls
+
+    def _five(self):
+        return [self._ep(i) for i in range(1, 6)]
+
+    def test_a_middle_episode_has_both(self):
+        q = self._five()
+        b, _c = self._page(q, q[2])
+        nodes, handlers = build_scene(b)
+        for nid in ("act-prev", "act-next"):
+            self.assertIn(nid, ids(nodes))
+            self.assertIn(nid, handlers)
+
+    def test_the_first_has_no_previous_and_the_last_no_next(self):
+        q = self._five()
+        b, _c = self._page(q, q[0])
+        nodes, _h = build_scene(b)
+        self.assertNotIn("act-prev", ids(nodes))
+        self.assertIn("act-next", ids(nodes))
+        b, _c = self._page(q, q[-1])
+        nodes, _h = build_scene(b)
+        self.assertIn("act-prev", ids(nodes))
+        self.assertNotIn("act-next", ids(nodes))
+
+    def test_they_sit_after_go_to_series_and_before_more(self):
+        q = self._five()
+        b, _c = self._page(q, q[2])
+        nodes, _h = build_scene(b)
+        x = {n["id"]: n["x"] for n in nodes if n.get("id") in (
+            "act-series", "act-prev", "act-next", "act-more")}
+        self.assertLess(x["act-series"], x["act-prev"])
+        self.assertLess(x["act-prev"], x["act-next"])
+        self.assertLess(x["act-next"], x["act-more"])
+
+    def test_the_queue_is_asked_for_the_whole_series(self):
+        """No limit: offline `eps[:0]` is empty, so 0 would hide both
+        buttons for a downloaded show."""
+        q = self._five()
+        b, calls = self._page(q, q[2])
+        self.assertEqual(calls, [("sh1", None, None)])
+
+    def test_next_crosses_a_season_boundary(self):
+        q = [self._ep("11", 1, 1), self._ep("12", 1, 2),
+             self._ep("21", 2, 1), self._ep("22", 2, 2)]
+        b, _c = self._page(q, q[2])           # S2E1
+        _n, handlers = build_scene(b)
+        handlers["act-prev"]["click"]()
+        self.assertEqual(b.route["item_id"], "ep12")     # the S1 finale
+        self.assertEqual(b.route["title"], "Episode 12")
+
+    def test_click_pushes_a_detail_route_so_back_returns(self):
+        q = self._five()
+        b, _c = self._page(q, q[2])
+        here = b.route
+        depth = len(b.nav_stack)
+        _n, handlers = build_scene(b)
+        handlers["act-next"]["click"]()
+        self.assertEqual(len(b.nav_stack), depth + 1)
+        self.assertEqual(b.route["kind"], "detail")
+        self.assertEqual(b.route["server"], "srv1")
+        self.assertEqual(b.route["item_id"], "ep4")
+        self.assertIs(b.nav_stack[-2], here)
+
+    def test_an_episode_missing_from_the_queue_gets_neither(self):
+        """A gap, or one the queue's filters dropped: where it sits in the
+        order is not known, so nothing is guessed."""
+        q = self._five()
+        gone = self._ep(9)
+        b, _c = self._page(q, gone)
+        nodes, _h = build_scene(b)
+        for nid in ("act-prev", "act-next"):
+            self.assertNotIn(nid, ids(nodes))
+
+    def test_a_failed_queue_lookup_costs_the_buttons_not_the_page(self):
+        def boom():
+            raise OSError("server gone")
+
+        q = self._five()
+        b, _c = self._page(q, q[2], queue_fn=boom)
+        nodes, _h = build_scene(b)
+        self.assertIn("btn-play", ids(nodes))
+        for nid in ("act-prev", "act-next"):
+            self.assertNotIn(nid, ids(nodes))
+
+    def test_a_film_never_asks_for_a_series_queue(self):
+        film = {"Id": "m1", "Name": "Film", "Type": "Movie",
+                "SeriesId": "sh1"}       # even a stray SeriesId
+        b, calls = self._page([], film)
+        nodes, _h = build_scene(b)
+        self.assertEqual(calls, [])
+        for nid in ("act-prev", "act-next"):
+            self.assertNotIn(nid, ids(nodes))
+
+    def test_an_episode_with_no_series_asks_nothing(self):
+        orphan = self._ep(1)
+        del orphan["SeriesId"]
+        b, calls = self._page([], orphan)
+        self.assertEqual(calls, [])
+
+    def test_the_click_reads_the_order_when_it_is_pressed(self):
+        """No rebuild between the change and the click: a closure that took
+        its target at build time follows the old order."""
+        q = self._five()
+        b, _c = self._page(q, q[2])
+        _n, handlers = build_scene(b)
+        b.route["_data"]["siblings"] = [
+            {"Id": "ep3", "Name": "Episode 3"},
+            {"Id": "late", "Name": "Late arrival"}]
+        handlers["act-next"]["click"]()
+        self.assertEqual(b.route["item_id"], "late")
+
+    def test_the_row_still_fits_a_narrow_window_with_them(self):
+        """At 800 wide this row is 719px without the two buttons and 803
+        with them -- the row has to wrap rather than run off the window."""
+        src = FakeSource()
+        cur = self._ep(3, SeasonId="se1",
+                       MediaSources=[{"Id": "x", "MediaStreams": []}])
+        src.items["ep3"] = cur
+        src.get_series_queue = lambda *a, **k: [
+            self._ep(i) for i in range(1, 6)]
+        b = MpvtkBrowser(app=None, source=src, controller=FakeController())
+        b._pool = _SyncPool()
+        b.server = "srv1"
+        b.navigate({"kind": "detail", "server": "srv1", "item_id": "ep3",
+                    "title": "E3"})
+        nodes, _h = build_scene(b, (800, 720))
+        self.assertIn("act-next", ids(nodes))
+        for n in nodes:
+            if (n.get("id") or "").startswith("act-") and n["t"] == "rect":
+                self.assertLessEqual(n["x"] + n["w"], 800, n["id"])
+
+    def test_both_are_reachable_from_the_keyboard(self):
+        """Buttons like the rest of the row: a click handler the focus ring
+        can land on, and a tooltip naming the icon."""
+        q = self._five()
+        b, _c = self._page(q, q[2])
+        nodes, handlers = build_scene(b)
+        for nid in ("act-prev", "act-next"):
+            node = next(n for n in nodes if n.get("id") == nid)
+            self.assertTrue(node.get("click"))
+            self.assertTrue(node.get("tip"))
+
+
 class TestTileAndMetaParity(unittest.TestCase):
     """Small captions that carry most of the information on a tile."""
 

@@ -14,7 +14,7 @@ import logging
 
 from ...i18n import _
 from ...mpvtk.scaling import px
-from ...mpvtk.widgets import Column, Dropdown, Row, Text, VScroll
+from ...mpvtk.widgets import Button, Column, Dropdown, Row, Text, VScroll
 from .. import components, theme, timefmt
 from ..components import (chrome, controls, detail as detail_components,
                           media_info)
@@ -43,7 +43,21 @@ class DetailPage(Page):
                 similar = source.get_similar(srv, iid)
             except Exception:
                 pass
+            siblings = None
+            if (item or {}).get("Type") == "Episode" and item.get("SeriesId"):
+                # The order playback advances in. Only decides the
+                # Previous / Next buttons, so a failed lookup costs those,
+                # not the page. No limit: the offline twin slices
+                # `eps[:limit]`, so 0 would be an empty list there.
+                try:
+                    siblings = [
+                        {"Id": e.get("Id"), "Name": e.get("Name", "")}
+                        for e in source.get_series_queue(
+                            srv, item["SeriesId"], limit=None) or []]
+                except Exception:
+                    log.debug("series queue lookup failed", exc_info=True)
             return {"item": item, "similar": similar,
+                    "siblings": siblings,
                     "may_refresh": actions.can_refresh_metadata(srv),
                     "trailers": detail_components.local_trailers(
                         source, srv, item),
@@ -106,7 +120,8 @@ class DetailPage(Page):
                  lambda: self.ctx.actions.mark_season(item, server, True)),
                 (_("Mark season as unwatched"), "check",
                  lambda: self.ctx.actions.mark_season(item, server, False))]
-        blocks.append(self._detail_actions(item, server, more))
+        blocks.append(self._detail_actions(item, server, more,
+                                           avail=tiles.body_w(w)))
         blocks.extend(self._track_pickers(item))
         text = chrome.overview(item)
         if text:
@@ -157,7 +172,7 @@ class DetailPage(Page):
     # -- actions -----------------------------------------------------------
 
 
-    def _detail_actions(self, item, server, more=()):
+    def _detail_actions(self, item, server, more=(), avail=0):
         btns = detail_components.common_actions(
             self.ctx.actions, self.ctx.art.tiles, item, server, "act")
         if item.get("MediaSources"):
@@ -194,9 +209,48 @@ class DetailPage(Page):
                 btns.insert(0, series_btn)
             else:
                 btns.append(series_btn)
+            prev_ep, next_ep = self._neighbours()
+            if prev_ep is not None:
+                btns.append(self._step_btn(
+                    "chevron_left", "act-prev", -1, _("Previous episode")))
+            if next_ep is not None:
+                btns.append(self._step_btn(
+                    "chevron_right", "act-next", 1, _("Next episode")))
         if more_btn is not None:
             btns.append(more_btn)
-        return Row(btns, gap=8, align="center")
+        # Wraps: Previous / Next episode tip this row over a window 800 wide.
+        return chrome.wrap_row(btns, avail, gap=8, align="center")
+
+    def _neighbours(self):
+        """``(previous, next)`` episodes in the series queue, either
+        ``None`` at an end -- and both ``None`` when this episode is not in
+        the queue, which is a gap or one its filters dropped.
+
+        Read from the route's data every time it is asked, so a click acts
+        on the order as it is now rather than as it was when drawn."""
+        siblings = (self.route.get("_data") or {}).get("siblings") or []
+        here = [s.get("Id") for s in siblings]
+        if self.route["item_id"] not in here:
+            return None, None
+        i = here.index(self.route["item_id"])
+        return (siblings[i - 1] if i > 0 else None,
+                siblings[i + 1] if i + 1 < len(siblings) else None)
+
+    def _step_btn(self, icon, node_id, direction, tip):
+        return Button("", id=node_id, icon=icon, w=34, h=34, pad=0,
+                      justify="center", tip=tip,
+                      on_click=lambda: self._step(direction))
+
+    def _step(self, direction):
+        """Open the previous (-1) or next (1) episode. A push, so Back
+        returns one episode at a time."""
+        target = self._neighbours()[0 if direction < 0 else 1]
+        if target is None:
+            return
+        self.ctx.nav.navigate({
+            "kind": "detail",
+            "server": self.route.get("server") or self.ctx.server,
+            "item_id": target["Id"], "title": target["Name"]})
 
     def _left_after_delete(self):
         """Leave the page once its item is gone.
