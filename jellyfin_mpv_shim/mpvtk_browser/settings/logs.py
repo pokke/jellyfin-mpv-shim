@@ -45,10 +45,12 @@ class LogsTabMixin:
                            icon="folder",
                            on_click=self._open_config_folder)],
                    gap=8, align="center", pad=self.CONTENT_PAD)
+        about = self._about_lines()
         if not lines:
             return Column([head,
-                           Column([Text(_("No log output captured yet."),
-                                        size="small", color=theme.SUBTLE_FG)],
+                           Column(about + [
+                               Text(_("No log output captured yet."),
+                                    size="small", color=theme.SUBTLE_FG)],
                                   pad=self.CONTENT_PAD)],
                           flex=1, align="stretch")
 
@@ -65,11 +67,28 @@ class LogsTabMixin:
                       size="caption", fg=theme.SUBTLE_FG, virtual=virtual)
         return Column([
             head,
+            Column(about, pad=self.CONTENT_PAD),
             VScroll(Column([table], pad=self.CONTENT_PAD),
                     id="settings-logs", flex=1, follow=True,
                     on_scroll=lambda off, mx: self._on_scroll(
                         "settings-logs", off, mx)),
         ], flex=1, align="stretch")
+    def _about_lines(self):
+        """Version and log paths under the header. Empty if the controller
+        cannot say, rather than failing the tab."""
+        try:
+            info = self.controller.about_info()
+            lines = [_("Version %s") % info["version"]]
+            if info.get("log"):
+                lines.append(_("Log file: %s") % info["log"])
+            if info.get("previous_log_exists"):
+                lines.append(_("Previous log: %s") % info["previous_log"])
+        except Exception:
+            log.debug("about_info failed", exc_info=True)
+            return []
+        return [Text(line, size="caption", color=theme.SUBTLE_FG)
+                for line in lines]
+
     def _poll_logs(self, route):
         """Re-render the logs tab while new lines are arriving.
 
