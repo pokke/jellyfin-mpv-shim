@@ -13,7 +13,7 @@ from . import conffile
 from . import i18n
 from .args import CLI_OVERRIDES, get_args
 from .conf import settings
-from .constants import APP_NAME
+from .constants import APP_NAME, CLIENT_VERSION, USER_APP_NAME
 from .log_utils import (
     configure_log,
     configure_log_file,
@@ -164,9 +164,6 @@ def main():
 
     app_log_level = "debug" if args.debug else settings.mpv_log_level
     configure_log(sys.stdout, app_log_level)
-    if settings.write_logs:
-        log_file = conffile.get(APP_NAME, "log.txt")
-        configure_log_file(log_file, app_log_level)
 
     log = root_logger
 
@@ -177,7 +174,6 @@ def main():
     from .win_fribidi import describe, preload
 
     preload()
-    log.info(describe())
 
     # Before anything builds a player: the settings this clears are applied
     # while one is being constructed, so clearing them afterwards would not
@@ -231,6 +227,15 @@ def main():
                 APP_NAME)
         log.info("Another instance is already running; exiting.")
         return
+
+    # Only the instance that holds the lock may open log.txt: opening it
+    # truncates, and a second launch doing so on its way out wiped the
+    # running instance's log.
+    if settings.write_logs:
+        log_file = conffile.get(APP_NAME, "log.txt")
+        configure_log_file(log_file, app_log_level)
+    log.info("%s %s", USER_APP_NAME, CLIENT_VERSION)
+    log.info(describe())
 
     # Created before anything can request a stop, so a `stop` arriving during
     # startup is honoured rather than acknowledged and dropped.
