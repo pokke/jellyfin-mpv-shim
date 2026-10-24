@@ -569,6 +569,31 @@ def deinterlace_value(override=None):
     return "auto" if settings.deinterlace_auto else "no"
 
 
+#: Properties the playback HUD's offset rows (and mpv's own keys) nudge, which
+#: must not outlive the file they were nudged for -- mpv is not re-created
+#: between queue items.
+PER_FILE_OPTIONS = ("sub-delay", "audio-delay")
+
+
+def pin_per_file_options(player):
+    """Make each of :data:`PER_FILE_OPTIONS` start every file at the value it
+    holds now; returns ``{option: that value}``.
+
+    Call it on a fresh mpv, once, before anything writes them: what it reads
+    is the user's own ``mpv.conf`` value, which is also what mpv restores at
+    the next file and what the HUD's Reset row goes back to.
+
+    mpv's ``reset-on-next-file`` does the restoring, and it is *appended* to
+    with ``change-list`` rather than assigned: the list is shared with the
+    user's own config, and a whole-property write would drop their entries.
+    """
+    baseline = {opt: float(getattr(player, opt.replace("-", "_")) or 0.0)
+                for opt in PER_FILE_OPTIONS}
+    for opt in PER_FILE_OPTIONS:
+        player.command("change-list", "reset-on-next-file", "append", opt)
+    return baseline
+
+
 def build_mpv_options(osc_style, scripts, ext_mpv, browser_wants_window):
     """The full option set to construct mpv with.
 

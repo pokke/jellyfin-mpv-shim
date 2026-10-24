@@ -658,3 +658,51 @@ class HwdecConfigPinTest(SettingsCase):
         with mock.patch("jellyfin_mpv_shim.conffile.get",
                         side_effect=OSError("gone")):
             self.assertIsNone(mpv_options.hwdec_pinned_by_config())
+
+
+class PerFileDelaysTest(unittest.TestCase):
+    """`sub-delay` and `audio-delay` start every file at the user's value.
+
+    mpv is not re-created between queue items, so a delay nudged during one
+    file would otherwise carry into the next. `reset-on-next-file` is mpv's
+    own answer, and it is APPENDED to rather than assigned: the list is the
+    user's too.
+    """
+
+    class _Player:
+        audio_delay = 0.2
+        sub_delay = 0.0
+
+        def __init__(self):
+            self.commands = []
+
+        def command(self, *args):
+            self.commands.append(args)
+
+    def test_both_properties_are_appended_never_assigned(self):
+        player = self._Player()
+        mpv_options.pin_per_file_options(player)
+        self.assertEqual(
+            player.commands,
+            [("change-list", "reset-on-next-file", "append", "sub-delay"),
+             ("change-list", "reset-on-next-file", "append", "audio-delay")])
+
+    def test_it_returns_the_value_the_user_started_with(self):
+        self.assertEqual(
+            mpv_options.pin_per_file_options(self._Player()),
+            {"sub-delay": 0.0, "audio-delay": 0.2})
+
+    def test_the_baseline_is_read_before_anything_is_written(self):
+        order = []
+
+        class P(self._Player):
+            def command(self, *args):
+                order.append("command")
+
+            @property
+            def sub_delay(self):
+                order.append("read")
+                return 0.0
+
+        mpv_options.pin_per_file_options(P())
+        self.assertEqual(order[0], "read")

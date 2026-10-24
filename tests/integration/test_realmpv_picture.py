@@ -243,5 +243,91 @@ class RealMpvPictureTest(unittest.TestCase):
             self.assertEqual(str(self._prop(prop)), str(was), prop)
 
 
+@h.require_real_mpv
+class RealMpvDelayResetTest(unittest.TestCase):
+    """`sub-delay` / `audio-delay` start every file at the user's value.
+
+    Read back from a real mpv: whether `reset-on-next-file` restores, and to
+    what, is mpv's behaviour and not something a stand-in can vouch for.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.player_module = _import_real_player()
+        cls.pm = cls.player_module.playerManager
+        import threading
+
+        cls.pm.action_trigger = threading.Event()
+        cls.pm.timeline_trigger = threading.Event()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.pm.terminate()
+        except Exception:
+            pass
+
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        self.tmp = tempfile.mkdtemp(prefix="jms-delay-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.clip = h.make_test_clip(os.path.join(self.tmp, "a.mp4"),
+                                     duration=2)
+        self.client = FakeClient()
+
+    def _play(self, item_id):
+        video = RealVideo(self.clip, self.client, item_id=item_id)
+        self.pm.play(video, is_initial_play=True)
+        self.assertIs(self.pm._video, video, "playback did not start")
+
+    def _delays(self):
+        p = self.pm._player
+        return (round(float(p.sub_delay), 6), round(float(p.audio_delay), 6))
+
+    def test_the_player_wires_it_and_three_files_start_at_the_baseline(self):
+        listed = self.pm._player.reset_on_next_file
+        self.assertIn("sub-delay", listed)
+        self.assertIn("audio-delay", listed)
+        base = self.pm._delay_baseline
+        want = (round(base["sub-delay"], 6), round(base["audio-delay"], 6))
+        self._play("d1")
+        self.assertEqual(self._delays(), want)
+        # nudged during the first file, by the same command the HUD sends
+        self.pm._player.command("add", "sub-delay", 0.5)
+        self.pm._player.command("add", "audio-delay", -0.3)
+        self.assertNotEqual(self._delays(), want)
+        for n in (2, 3):
+            self._play("d%d" % n)
+            self.assertEqual(self._delays(), want,
+                             "file %d did not start at the baseline" % n)
+
+    def test_a_nonzero_baseline_survives_every_file(self):
+        """The user's own mpv.conf value, not zero. Constructed with the
+        option, which is the state mpv.conf leaves behind. Its own libmpv
+        and mpv's synthetic source, so it needs neither ffmpeg nor a
+        window."""
+        if self.player_module.is_using_ext_mpv:
+            self.skipTest("needs an in-process libmpv to construct")
+        from jellyfin_mpv_shim.mpv_options import pin_per_file_options
+
+        player = self.player_module.mpv.MPV(
+            vo="null", ao="null", idle=True, audio_delay=0.2)
+        try:
+            base = pin_per_file_options(player)
+            self.assertAlmostEqual(base["audio-delay"], 0.2)
+            for n in range(3):
+                player.loadfile("av://lavfi:testsrc=d=1:r=5")
+                player.wait_until_playing()
+                self.assertAlmostEqual(float(player.audio_delay), 0.2, 6,
+                                       "file %d lost the baseline" % (n + 1))
+                self.assertAlmostEqual(float(player.sub_delay), 0.0, 6)
+                player.command("add", "audio-delay", 0.4)
+                player.command("add", "sub-delay", -0.7)
+        finally:
+            player.terminate()
+
+
 if __name__ == "__main__":
     unittest.main()

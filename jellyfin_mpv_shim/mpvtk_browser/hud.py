@@ -119,6 +119,12 @@ def _hud_action(b, verb, arg=None):
     b._ctl(lambda c: c.hud_action(verb, arg))
 
 
+def _delay_ctl(b, name, *args):
+    """One of the offset submenu's rows: do it, keep the menu open, redraw."""
+    b._ctl(lambda c: getattr(c, name)(*args))
+    b.invalidate()
+
+
 #: One glyph size for every icon control on the playback HUD, before the
 #: responsive shrink. The transport buttons were already 30; the track
 #: pickers derived theirs from the type size and came out at 24.
@@ -298,6 +304,15 @@ _ASPECTS = [
     ("4:3", 4.0 / 3.0, "4:3"),
     ("2.35:1", 2.35, "2.35:1"),
 ]
+
+#: The subtitle/audio offset submenus' steps, in seconds.
+_DELAY_STEPS = (-1.0, -0.1, 0.1, 1.0)
+
+
+def _fmt_ms(seconds):
+    """mpv's delay in seconds as the menu shows it: "+300 ms", "0 ms"."""
+    ms = int(round(seconds * 1000))
+    return _("%+d ms") % ms if ms else _("0 ms")
 
 
 def _open_hud_menu(b, kind, anchor=None):
@@ -492,6 +507,12 @@ def _menu_rows(b, st, shed=None):
                 rows.append((with_current(label, group.get("current")),
                              None,
                              lambda k=key: _open_hud_menu(b, "sub_" + k)))
+        for label, getter, menu in (
+                (_("Subtitle Offset"), "get_sub_delay", "sub_delay"),
+                (_("Audio Offset"), "get_audio_delay", "audio_delay")):
+            rows.append((with_current(
+                label, _fmt_ms(float(_ctl_get(b, getter, 0.0)))), None,
+                lambda m=menu: _open_hud_menu(b, m)))
         # No SyncPlay row: the bar carries its own SyncPlay button under
         # exactly the same condition this row had (a state blob with
         # media), so it was never the only way in — and unlike Quality it
@@ -543,6 +564,16 @@ def _menu_rows(b, st, shed=None):
                          "check" if abs(cur - num) < 0.01 else None,
                          leaf(lambda v=value: b._ctl(
                              lambda c: c.set_aspect(v)))))
+    elif kind in ("sub_delay", "audio_delay"):
+        # Not leaves: the menu stays open so a press can be repeated, and
+        # the value only changes on screen because we ask for the redraw.
+        prop = kind.replace("_delay", "")
+        for step in _DELAY_STEPS:
+            rows.append((_("%+d ms") % round(step * 1000), None,
+                         lambda s=step: _delay_ctl(
+                             b, "adjust_%s_delay" % prop, s)))
+        rows.append((_("Reset"), None, lambda: _delay_ctl(
+            b, "reset_%s_delay" % prop)))
     elif kind == "profiles":
         # The scope step, which is also the report: each row carries the
         # profile that scope holds and the winning one is marked, so a film

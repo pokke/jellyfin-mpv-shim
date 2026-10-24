@@ -42,7 +42,7 @@ from .player_reporting import ReportingMixin
 from . import player_window
 from .player_window import WindowMixin, wlog
 from .mpv_options import (REPLACES_OSC, build_mpv_options, mpv_scripts,
-                          osc_script_opts,
+                          osc_script_opts, pin_per_file_options,
                           resolve_osc_style)
 from .session_reporter import SessionReporter
 from . import conf
@@ -1299,6 +1299,14 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         except Exception:
             log.debug("could not pre-set the OSC script options",
                       exc_info=True)
+
+        # Subtitle and audio offset start each file at the user's value.
+        # What the HUD's Reset row goes back to, read off a fresh mpv.
+        self._delay_baseline = {}
+        try:
+            self._delay_baseline = pin_per_file_options(self._player)
+        except Exception:
+            log.debug("could not pin the per-file delays", exc_info=True)
 
         # The classic OSC, chosen against this mpv rather than at option-build
         # time -- which is why it is a `load-script` here and not an entry in

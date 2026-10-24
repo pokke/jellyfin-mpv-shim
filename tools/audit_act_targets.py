@@ -121,6 +121,30 @@ DECLARED = {
         "user's mpv.conf. `aspect_forced()` answers the manager's question "
         "and is not what this row draws."
     ),
+    "hud.py:get_sub_delay:B:sub_delay": (
+        "A direct read like `get_speed`: it is asked on the render path, "
+        "and a deferred answer is no answer to a menu being drawn now."
+    ),
+    "hud.py:get_audio_delay:B:audio_delay": (
+        "Same as `get_sub_delay`: a direct read for a menu being drawn now."
+    ),
+    "hud.py:adjust_sub_delay:B:command": (
+        "`add` is mpv's atomic increment, which is the point: routing "
+        "through a manager method that read then wrote would lose a press "
+        "when `_act` defers. There is no manager method to call and none "
+        "would add anything but the lock `_act` already takes."
+    ),
+    "hud.py:adjust_audio_delay:B:command": (
+        "Same as `adjust_sub_delay`: mpv's atomic `add`, no manager method."
+    ),
+    "hud.py:reset_sub_delay:A:sub_delay": (
+        "Writes the per-file baseline, like `set_speed` writes its value. "
+        "The baseline is `PlayerManager._delay_baseline`, read inside the "
+        "action."
+    ),
+    "hud.py:reset_audio_delay:A:audio_delay": (
+        "Same as `reset_sub_delay`: writes the file's baseline, like `set_speed`."
+    ),
     "hud.py:chapters:B:chapter_list": (
         "Reads mpv's chapter list to draw the chapter row. Read-only, and "
         "the ACTING half of the same feature already went the other way: "

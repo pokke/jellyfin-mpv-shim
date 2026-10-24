@@ -983,6 +983,193 @@ class TestPlaybackHudMenusAndFavorite(unittest.TestCase):
         menu = next(n for n in nodes if n.get("id") == "hud-menu")
         self.assertEqual(menu["items"], ["Back"])
 
+
+class TestGearDelayMenus(unittest.TestCase):
+    """Subtitle and audio offset, from the gear (A6).
+
+    The adjust rows are the one place in the gear that changes state and
+    keeps the menu open, so each owes an invalidate -- the value shown is
+    drawn, and only a redraw can move it.
+    """
+
+    def _browser(self):
+        ctl = HudController()
+        b = MpvtkBrowser(app=None, source=FakeSource(), controller=ctl)
+        b._browsing = False
+        b.hud.shown = True
+        b.hud.state = {"stopped": False, "is_audio": False,
+                       "title": "Movie", "position": 50.0,
+                       "duration": 100.0, "paused": False,
+                       "favorite": False}
+        return b, ctl
+
+    def _menu(self, b):
+        nodes, handlers = build_scene(b, (1280, 720))
+        menu = next(n for n in nodes if n.get("id") == "hud-menu")
+        return menu["items"], handlers["hud-menu"]["select"]
+
+    def _root_label(self, b, word):
+        b.hud.menu = "root"
+        items, _sel = self._menu(b)
+        return next(l for l in items if word in l)
+
+    def test_the_root_rows_start_at_zero(self):
+        b, _ctl = self._browser()
+        self.assertEqual(self._root_label(b, "Subtitle Offset"),
+                         "Subtitle Offset  ·  0 ms")
+        self.assertEqual(self._root_label(b, "Audio Offset"),
+                         "Audio Offset  ·  0 ms")
+
+    def test_the_root_rows_open_their_submenus(self):
+        for word, kind in (("Subtitle Offset", "sub_delay"),
+                           ("Audio Offset", "audio_delay")):
+            with self.subTest(kind=kind):
+                b, _ctl = self._browser()
+                b.hud.menu = "root"
+                items, select = self._menu(b)
+                idx = next(i for i, l in enumerate(items) if word in l)
+                select(idx, items[idx])
+                self.assertEqual(b.hud.menu, kind)
+                items, _sel = self._menu(b)
+                self.assertEqual(
+                    items, ["Back", "-1000 ms", "-100 ms", "+100 ms",
+                            "+1000 ms", "Reset"])
+
+    def test_an_adjust_row_sends_the_step_and_keeps_the_menu_open(self):
+        from unittest import mock
+
+        steps = {"-1000 ms": -1.0, "-100 ms": -0.1,
+                 "+100 ms": 0.1, "+1000 ms": 1.0}
+        for kind, verb in (("sub_delay", "adjust_sub_delay"),
+                           ("audio_delay", "adjust_audio_delay")):
+            for label, step in steps.items():
+                with self.subTest(kind=kind, row=label):
+                    b, ctl = self._browser()
+                    b.hud.menu = kind
+                    items, select = self._menu(b)
+                    with mock.patch.object(
+                            b, "invalidate", wraps=b.invalidate) as inv:
+                        select(items.index(label), label)
+                    self.assertIn((verb, (step,)), ctl.transport)
+                    self.assertEqual(b.hud.menu, kind,
+                                     "an adjust row closed the menu")
+                    inv.assert_called()
+
+    def test_a_rebuild_after_the_action_shows_the_new_value(self):
+        b, ctl = self._browser()
+        b.hud.menu = "sub_delay"
+        items, select = self._menu(b)
+        select(items.index("+100 ms"), "+100 ms")
+        self.assertEqual(self._root_label(b, "Subtitle Offset"),
+                         "Subtitle Offset  ·  +100 ms")
+        # and the audio row is a different property, not a mirror
+        self.assertEqual(self._root_label(b, "Audio Offset"),
+                         "Audio Offset  ·  0 ms")
+
+    def test_repeated_presses_accumulate_rather_than_walk(self):
+        b, ctl = self._browser()
+        for n in range(1, 4):
+            b.hud.menu = "audio_delay"
+            items, select = self._menu(b)
+            select(items.index("-100 ms"), "-100 ms")
+            self.assertEqual(self._root_label(b, "Audio Offset"),
+                             "Audio Offset  ·  %d ms" % (-100 * n))
+
+    def test_reset_asks_for_the_files_own_value_and_stays_open(self):
+        from unittest import mock
+
+        for kind, verb in (("sub_delay", "reset_sub_delay"),
+                           ("audio_delay", "reset_audio_delay")):
+            with self.subTest(kind=kind):
+                b, ctl = self._browser()
+                b.hud.menu = kind
+                items, select = self._menu(b)
+                with mock.patch.object(
+                        b, "invalidate", wraps=b.invalidate) as inv:
+                    select(items.index("Reset"), "Reset")
+                self.assertIn((verb, ()), ctl.transport)
+                self.assertEqual(b.hud.menu, kind)
+                inv.assert_called()
+
+    def test_back_returns_to_the_root(self):
+        b, _ctl = self._browser()
+        b.hud.menu = "sub_delay"
+        items, select = self._menu(b)
+        select(items.index("Back"), "Back")
+        self.assertEqual(b.hud.menu, "root")
+
+    def test_the_label_format(self):
+        from jellyfin_mpv_shim.mpvtk_browser.hud import _fmt_ms
+
+        for seconds, want in ((0.3, "+300 ms"), (-0.05, "-50 ms"),
+                              (0, "0 ms"), (0.0, "0 ms"),
+                              (0.1 + 0.2, "+300 ms"), (-1.0, "-1000 ms"),
+                              (0.0004, "0 ms")):
+            with self.subTest(seconds=seconds):
+                self.assertEqual(_fmt_ms(seconds), want)
+
+
+class TestGatewayDelays(unittest.TestCase):
+    """The gateway end of the same rows, against a recording player."""
+
+    class _Player:
+        def __init__(self):
+            self.commands = []
+            self.sub_delay = 0.0
+            self.audio_delay = 0.2
+
+        def command(self, *args):
+            self.commands.append(args)
+
+    def _pm(self):
+        from types import SimpleNamespace
+
+        pm = SimpleNamespace(
+            _player=self._Player(),
+            _delay_baseline={"sub-delay": 0.0, "audio-delay": 0.2})
+        pm.run_action = lambda fn: fn(pm)
+        return pm
+
+    def _gw(self, pm):
+        from unittest import mock
+        import jellyfin_mpv_shim.player as player_mod
+        from jellyfin_mpv_shim.mpvtk_browser.gateway.hud import HudMixin
+
+        patch = mock.patch.object(player_mod, "playerManager", pm)
+        patch.start()
+        self.addCleanup(patch.stop)
+        return HudMixin()
+
+    def test_reads_are_direct_and_default_to_zero(self):
+        pm = self._pm()
+        gw = self._gw(pm)
+        self.assertEqual(gw.get_sub_delay(), 0.0)
+        self.assertEqual(gw.get_audio_delay(), 0.2)
+        pm._player = None
+        self.assertEqual(gw.get_sub_delay(), 0.0)
+        self.assertEqual(gw.get_audio_delay(), 0.0)
+
+    def test_adjust_is_an_atomic_add_not_a_read_modify_write(self):
+        pm = self._pm()
+        gw = self._gw(pm)
+        gw.adjust_sub_delay(0.1)
+        gw.adjust_audio_delay(-1.0)
+        self.assertEqual(pm._player.commands,
+                         [("add", "sub-delay", 0.1),
+                          ("add", "audio-delay", -1.0)])
+
+    def test_reset_writes_the_baseline_not_zero(self):
+        pm = self._pm()
+        gw = self._gw(pm)
+        pm._player.sub_delay = 0.7
+        pm._player.audio_delay = 0.9
+        gw.reset_sub_delay()
+        gw.reset_audio_delay()
+        self.assertEqual(pm._player.sub_delay, 0.0)
+        self.assertEqual(pm._player.audio_delay, 0.2,
+                         "Reset went to zero, over the user's mpv.conf")
+
+
 class TestHudLifecycleWiring(unittest.TestCase):
     def test_set_app_rewires_callbacks(self):
         b = MpvtkBrowser(app=None, source=FakeSource(),
