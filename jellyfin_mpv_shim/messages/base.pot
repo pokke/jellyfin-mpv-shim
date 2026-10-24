@@ -2509,13 +2509,15 @@ msgid "Left Click Pauses Playback"
 msgstr ""
 
 #. Label of the number box for the "skip_back_secs" setting
-#. (Settings > Playback > Player Controls). The number is seconds.
+#. (Settings > Playback > Player Controls). The number is seconds. It sets
+#. the back button on the playback controls and the left arrow key.
 #: jellyfin_mpv_shim/mpvtk_browser/config.py
 msgid "Skip Back (seconds)"
 msgstr ""
 
 #. Label of the number box for the "skip_forward_secs" setting
-#. (Settings > Playback > Player Controls). The number is seconds.
+#. (Settings > Playback > Player Controls). The number is seconds. It sets
+#. the forward button on the playback controls and the right arrow key.
 #: jellyfin_mpv_shim/mpvtk_browser/config.py
 msgid "Skip Forward (seconds)"
 msgstr ""
@@ -3082,8 +3084,9 @@ msgstr ""
 #. the built-in distance, which is the number in the text.
 #: jellyfin_mpv_shim/mpvtk_browser/config.py
 msgid ""
-"How far the back button on the player controls jumps. Leave it blank for 10 "
-"seconds."
+"How far the back button on the player controls and the left arrow key jump. "
+"Leave it blank for 10 seconds on the button and MPV's own distance on the "
+"key. Up and down keep the distance in your input.conf."
 msgstr ""
 
 #. Explanation shown under the "Skip Forward (seconds)" setting
@@ -3091,8 +3094,9 @@ msgstr ""
 #. the built-in distance, which is the number in the text.
 #: jellyfin_mpv_shim/mpvtk_browser/config.py
 msgid ""
-"How far the forward button on the player controls jumps. Leave it blank for "
-"30 seconds."
+"How far the forward button on the player controls and the right arrow key "
+"jump. Leave it blank for 30 seconds on the button and MPV's own distance on "
+"the key. Up and down keep the distance in your input.conf."
 msgstr ""
 
 #. Explanation shown under the "Deinterlace Automatically" setting

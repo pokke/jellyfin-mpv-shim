@@ -110,6 +110,19 @@ def select_key():
     return getattr(settings, "ui_select_key", None) or "ENTER"
 
 
+def skip_secs(value):
+    """A Skip Back / Skip Forward setting as whole seconds, or None.
+
+    None means "not set": blank, or something that is not a distance (zero,
+    negative, not a number). Every reader goes through here so that they
+    agree on what a bad value means -- the HUD buttons and the arrow keys
+    would otherwise each decide for themselves.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return None
+    return value
+
+
 def get_default_sdir():
     if sys.platform.startswith("win32"):
         if os.environ.get("USERPROFILE"):
@@ -458,9 +471,10 @@ class Settings(SettingsBase):
     mpv_ext_start_retry_delay_ms: int = 3000
     mpv_ext_no_ovr: bool = False
     use_web_seek: bool = False
-    # Seconds the player's skip back / skip forward steps move. Blank keeps
-    # today's behaviour: the HUD's buttons step -10 / +30. A value under 1
-    # is read as blank.
+    # Seconds the player's skip back / skip forward steps move: the HUD's
+    # buttons and the left / right arrow keys. Blank keeps today's
+    # behaviour (buttons -10 / +30, arrows mpv's own). Read through
+    # skip_secs(), which treats a value under 1 as blank.
     skip_back_secs: Optional[int] = None
     skip_forward_secs: Optional[int] = None
     # Locked-down cast-target mode: the cast screen is the only page, and
@@ -518,7 +532,9 @@ class Settings(SettingsBase):
     # the shim CLAIM the key, and the claim seeks by mpv's own amount) and
     # were never in the settings UI or the README to begin with. The
     # migration carries an old value across by reading the raw config --
-    # see input_conf.LEGACY_SEEK_DEFAULTS.
+    # see input_conf.LEGACY_SEEK_DEFAULTS. skip_back_secs / skip_forward_secs
+    # (above) are not these coming back: they set the left and right arrows
+    # only, and PlayerManager._skip_override applies them over the binding.
     shader_pack_enable: bool = True
     shader_pack_custom: bool = False
     shader_pack_remember: bool = True

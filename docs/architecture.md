@@ -447,7 +447,8 @@ kinds, and the split is not cosmetic:
   knowing any of them exist, and a page that claims ENTER (the epub reader, a dialog)
   gets the controller's confirm button for free.
 - **`SEEK` goes to `PlayerManager.kb_seek`**, which is the *keyboard's* seek and not
-  a number of ours: it reads the distance out of the user's own `input.conf` binding,
+  a number of ours: it reads the distance out of the user's own `input.conf` binding
+  (left and right take `skip_back_secs` / `skip_forward_secs` instead, when set),
   applies `use_web_seek`, and routes through a seek a SyncPlay group hears about. A
   raw `seek 5` from Lua would be none of those three, and the third is a desync the
   group then corrects.

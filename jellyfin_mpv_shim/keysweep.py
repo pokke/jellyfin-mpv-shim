@@ -258,8 +258,13 @@ def section_lines(claims, message, suppress=()):
     bound to it, which is what makes a claim preserve meaning instead of
     substituting our own verb.
     """
-    lines = ["%s script-message %s %s %s" % (key, message, semantic,
-                                             shlex.quote(key))
+    # `repeatable` on a seek only. mpv auto-repeats a held key for commands
+    # that allow it and `script-message` is not one, so a claimed LEFT fired
+    # once per press where mpv's own `seek -5` repeats for as long as it is
+    # held. Not on pause or fullscreen, which should not repeat.
+    lines = ["%s %sscript-message %s %s %s"
+             % (key, "repeatable " if semantic == SEEK else "", message,
+                semantic, shlex.quote(key))
              for key, semantic, _arg in claims]
     # `ignore` rather than a message: these are suppressed for the duration
     # of the claim, not handled. mpv drops the key and nothing else in the

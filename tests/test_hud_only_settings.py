@@ -113,6 +113,16 @@ class NotHiddenTest(unittest.TestCase):
         self.assertEqual(keys.index("skip_forward_secs"),
                          keys.index("skip_back_secs") + 1)
 
+    def test_the_skip_distances_always_show(self):
+        """The step buttons are the HUD's, but the same two numbers set
+        the left and right arrows, which every style has. Hiding them with
+        the HUD would take away the half that still works."""
+        for style in ("mpvtk", "mpv", "default", "none"):
+            with self.subTest(style=style):
+                shown = _shown(style)
+                self.assertIn("skip_back_secs", shown)
+                self.assertIn("skip_forward_secs", shown)
+
     def test_trickplay_fast_mode_always_shows(self):
         """thumbfast is loaded for both OSCs."""
         self.assertIn("trickplay_fast_mode", _shown("mpv"))

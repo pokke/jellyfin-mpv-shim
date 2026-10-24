@@ -400,12 +400,23 @@ The governing rule is *stop intercepting keys whose meaning we did not change*.
 - `f` is mpv's own key with mpv's own meaning, so fullscreen is *claimed* rather
   than bound; the claim follows a remapped key where a fixed binding never did.
 - Seeking is mpv's too, unless the shim's own seek does something mpv's cannot —
-  then it is claimed. `_MPV_EQUIVALENT_SEEK` is what decides, and only
-  `use_web_seek` is left in it: the six seek settings that used to be there are
-  gone from the config entirely, because a distance now lives in the user's
-  `input.conf`. While they existed they were actively misleading — a changed
-  distance made the check return True, and the resulting claim then seeked by the
-  amount in *mpv's* binding rather than by the setting.
+  then it is claimed. `_MPV_EQUIVALENT_SEEK` is what decides: `use_web_seek`, and
+  the Skip Back / Skip Forward distances (`skip_back_secs`, `skip_forward_secs`).
+  The six per-arrow seek settings that used to be there are gone from the config
+  entirely, because those distances live in the user's `input.conf`. While they
+  existed they were actively misleading — a changed distance made the check
+  return True, and the resulting claim then seeked by the amount in *mpv's*
+  binding rather than by the setting. The two skip settings avoid that by being
+  applied explicitly: `_skip_override` puts the setting's number over the
+  binding's, and only for a key named exactly `LEFT` or `RIGHT`.
+  - **A claimed seek differs from mpv's in two ways, measured on libmpv 2.** It
+    repeats while the key is held only because `section_lines` prefixes seek
+    lines with `repeatable` (`script-message` does not auto-repeat: one fire for
+    a 1.2 s hold, against about 41 for mpv's own `seek -5`). And it is issued
+    through the client API, whose command flags carry no OSD bit, so mpv's seek
+    bar is not drawn (`flags=64`, against `73` for the binding).
+  - The wheel is suppressed only while a SyncPlay group claims seek, never for
+    this standing claim.
 - `skip_intro_on_seek` deliberately has no key. `_on_seeking` observes the
   `seeking` property and applies it to *any* forward seek, mpv's own bindings
   included. Claiming a key would double-handle, since the claim's own `seek()`

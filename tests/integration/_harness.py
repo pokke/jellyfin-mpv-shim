@@ -723,6 +723,10 @@ class FakeMPV:
         """What a section line does when its key is pressed. shlex, because
         ``keysweep.section_lines`` quotes the key it passes along."""
         parts = shlex.split(cmd)
+        if parts and parts[0] == "repeatable":
+            # A prefix to the command, not part of it; mpv's repeat timing
+            # is not modelled here.
+            parts = parts[1:]
         if not parts or parts[0] == "ignore":
             # `ignore` is mpv dropping the key. Recorded nowhere on
             # purpose: the point of a suppression is that nothing sees it.

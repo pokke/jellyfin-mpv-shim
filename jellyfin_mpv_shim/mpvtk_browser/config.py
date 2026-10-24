@@ -102,8 +102,7 @@ BACKGROUND_DEPENDENT = ("start_minimized",)
 #: chosen and go when it is left -- which is right: the form describes the
 #: configuration, and the restart banner covers the gap.
 HUD_ONLY = ("hud_grab_keys", "hud_wake_key", "hud_scrim", "hud_autohide",
-            "hud_hide_secs", "hud_auto_scale", "mouse_click_pauses",
-            "skip_back_secs", "skip_forward_secs")
+            "hud_hide_secs", "hud_auto_scale", "mouse_click_pauses")
 
 #: Settings that tune trickplay and so do nothing with `thumbnail_enable`
 #: off. Hidden rather than disabled, per docs/settings-curation.md §2.
@@ -889,10 +888,20 @@ NOTES = {
                             "gives it. Double click is full screen either "
                             "way."),
     # Blank is a value with a meaning, and the label cannot say what it is.
+    # Names the keys too: the same number moves the arrow keys, which every
+    # player UI has, while the buttons belong to the Jellyfin UI alone. Up
+    # and down are said to be left out because they are the ones a reader
+    # would otherwise expect to move.
     "skip_back_secs": _("How far the back button on the player controls "
-                        "jumps. Leave it blank for 10 seconds."),
+                        "and the left arrow key jump. Leave it blank for "
+                        "10 seconds on the button and MPV's own distance "
+                        "on the key. Up and down keep the distance in your "
+                        "input.conf."),
     "skip_forward_secs": _("How far the forward button on the player "
-                           "controls jumps. Leave it blank for 30 seconds."),
+                           "controls and the right arrow key jump. Leave it "
+                           "blank for 30 seconds on the button and MPV's own "
+                           "distance on the key. Up and down keep the "
+                           "distance in your input.conf."),
     # The reason this is off by default, in the place someone deciding
     # whether to change it is looking. mpv's own manual says to
     # "acknowledge that this may cause problems"; the tail it breaks for

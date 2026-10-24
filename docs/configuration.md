@@ -269,11 +269,20 @@ Under **Show advanced settings**:
 - `mouse_click_pauses` - Left click on the video pauses. Default: `true`
   - Off restores mpv's behaviour: drag the video to move the window, right click to pause.
     Double click is fullscreen either way.
-- `skip_back_secs` - Seconds the back button on the controls jumps. Default: unset (`10`).
+- `skip_back_secs` - Seconds the back button on the controls and the left arrow key jump.
+  Default: unset (`10` on the button, mpv's own distance on the key).
   - Blank keeps the default. A value under 1 is treated as blank. The button shows a numbered
     icon for 5, 10 and 30 seconds and a rewind icon for any other distance.
-- `skip_forward_secs` - Seconds the forward button on the controls jumps. Default: unset
-  (`30`). Otherwise as `skip_back_secs`.
+  - Only the keys named exactly `LEFT` and `RIGHT` take the distance. Up and down, the shifted
+    arrows, the media keys and the mouse wheel keep what mpv binds them to, and a distance in
+    your `input.conf` for left or right is not used while this is set. The gamepad's right stick
+    and the Jellyfin remote's left and right follow it too.
+  - It wins over `use_web_seek` on those two keys. Applies without a restart.
+  - A key seek made through this setting repeats while the key is held, like mpv's own, but
+    does not draw mpv's seek bar.
+- `skip_forward_secs` - Seconds the forward button on the controls and the right arrow key
+  jump. Default: unset (`30` on the button, mpv's own distance on the key). Otherwise as
+  `skip_back_secs`.
 - `trickplay_fast_mode` - Load every seek preview up front. Default: `false`
   - Previews never wait, at the cost of hundreds of MB of memory on a long video. See
     [Seek previews](#seek-previews-trickplay).

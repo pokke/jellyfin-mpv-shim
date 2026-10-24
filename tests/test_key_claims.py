@@ -109,7 +109,7 @@ class ClaimLifecycleTest(unittest.TestCase):
         body = _defined(pm)[-1]
         self.assertIn("SPACE script-message", body)
         self.assertIn("p script-message", body)
-        self.assertIn("LEFT script-message", body)
+        self.assertIn("LEFT repeatable script-message", body)
         self.assertNotIn("f script-message", body, "fullscreen not claimed")
         self.assertNotIn("m script-message", body, "mute is not ours")
         self.assertTrue(_sections(pm)[PlayerManager.KEY_SECTION])
@@ -329,6 +329,18 @@ class SeekClaimGateTest(unittest.TestCase):
     def test_web_seek_claims(self):
         self.assertTrue(self._differs(use_web_seek=True))
 
+    def test_a_skip_distance_claims(self):
+        """Skip Back / Skip Forward make the shim's seek differ from mpv's
+        on the left/right arrows, so they are what opens the claim."""
+        self.assertTrue(self._differs(skip_back_secs=20))
+        self.assertTrue(self._differs(skip_forward_secs=20))
+
+    def test_a_skip_distance_that_is_not_a_distance_does_not_claim(self):
+        """Zero and negatives are read as blank everywhere else, so they
+        must not buy a claim that then does nothing different."""
+        self.assertFalse(self._differs(skip_back_secs=0))
+        self.assertFalse(self._differs(skip_forward_secs=-3))
+
     def test_skip_intro_on_seek_needs_no_claim(self):
         """[iw]: "doesn't seek to skip intro listen for seeks too?" It does
         — `_on_seeking` observes the `seeking` property and applies it to
@@ -467,3 +479,184 @@ class SectionFlagsTest(unittest.TestCase):
         pm.claim_keys("fullscreen", {FULLSCREEN})
         self.assertTrue(_sections(pm)[PlayerManager.KEY_SECTION])
         self.assertTrue(self.WANT <= self._flags(pm)[-1])
+
+
+# mpv's arrow bindings, as the sweep reports them, for the skip tests: the
+# fixture above has no UP/DOWN/RIGHT because nothing there needed them.
+ARROWS = BINDINGS + [
+    {"key": "RIGHT", "cmd": "seek 5", "is_weak": True, "priority": 0},
+    {"key": "UP", "cmd": "seek 60", "is_weak": True, "priority": 0},
+    {"key": "DOWN", "cmd": "seek -60", "is_weak": True, "priority": 0},
+    {"key": "Shift+LEFT", "cmd": "seek -1 exact", "is_weak": True,
+     "priority": 0},
+]
+
+
+def _skip_settings(**kw):
+    from jellyfin_mpv_shim.conf import Settings
+
+    return Settings().parse_obj(dict(Settings().dict(), **kw))
+
+
+class SkipDistanceDispatchTest(unittest.TestCase):
+    """Skip Back / Skip Forward on the left and right arrows.
+
+    Only the keys named exactly LEFT and RIGHT take the distance. Up and
+    down, the shifted arrows, the media keys and the wheel keep what mpv
+    says they mean, even though they are claimed in the same section.
+    """
+
+    def _press(self, keys, **kw):
+        """Press each key, return ``[(amount, exact)]`` handed to seek()."""
+        pm = _pm()
+        pm._player.input_bindings = list(ARROWS)
+        pm.get_seek_times = lambda: (-15.0, 30.0)
+        got = []
+        pm.seek = lambda amount, exact=False, **k: got.append((amount, exact))
+        with mock.patch("jellyfin_mpv_shim.player.settings",
+                        _skip_settings(**kw)):
+            pm.claim_keys("seek", {SEEK})
+            for key in keys:
+                pm._on_claimed_key(SEEK, key)
+        return got
+
+    def test_left_and_right_use_the_setting(self):
+        self.assertEqual(
+            self._press(["LEFT", "RIGHT"], skip_back_secs=20,
+                        skip_forward_secs=45),
+            [(-20.0, False), (45.0, False)])
+
+    def test_holding_a_key_does_not_walk(self):
+        """Three presses, the same distance each time, and the table the
+        presses are answered from untouched by them."""
+        pm = _pm()
+        pm._player.input_bindings = list(ARROWS)
+        got = []
+        pm.seek = lambda amount, exact=False, **k: got.append(amount)
+        with mock.patch("jellyfin_mpv_shim.player.settings",
+                        _skip_settings(skip_back_secs=20)):
+            pm.claim_keys("seek", {SEEK})
+            before = dict(pm._key_actions)
+            for _ in range(3):
+                pm._on_claimed_key(SEEK, "LEFT")
+        self.assertEqual(got, [-20.0, -20.0, -20.0])
+        self.assertEqual(pm._key_actions, before)
+
+    def test_up_and_down_keep_their_own_distance(self):
+        self.assertEqual(
+            self._press(["UP", "DOWN"], skip_back_secs=20,
+                        skip_forward_secs=45),
+            [(60.0, False), (-60.0, False)])
+
+    def test_the_shifted_arrow_stays_a_one_second_exact_step(self):
+        self.assertEqual(
+            self._press(["Shift+LEFT"], skip_back_secs=20),
+            [(-1.0, True)])
+
+    def test_the_bindings_exactness_is_kept(self):
+        pm = _pm()
+        pm._player.input_bindings = [
+            {"key": "LEFT", "cmd": "seek -5 exact", "is_weak": True,
+             "priority": 0}]
+        got = []
+        pm.seek = lambda amount, exact=False, **k: got.append((amount, exact))
+        with mock.patch("jellyfin_mpv_shim.player.settings",
+                        _skip_settings(skip_back_secs=20)):
+            pm.claim_keys("seek", {SEEK})
+            pm._on_claimed_key(SEEK, "LEFT")
+        self.assertEqual(got, [(-20.0, True)])
+
+    def test_the_setting_beats_web_seek_on_the_arrows_only(self):
+        got = self._press(["LEFT", "RIGHT", "UP"], use_web_seek=True,
+                          skip_back_secs=20)
+        # LEFT: the setting. RIGHT: no setting, so web seek's forward
+        # distance. UP: web seek by sign, as before.
+        self.assertEqual(got, [(-20.0, False), (30.0, False),
+                               (30.0, False)])
+
+    def test_a_value_that_is_not_a_distance_is_ignored(self):
+        for bad in (0, -3):
+            with self.subTest(value=bad):
+                self.assertEqual(
+                    self._press(["LEFT", "RIGHT"], skip_back_secs=bad,
+                                skip_forward_secs=bad, use_web_seek=True),
+                    [(-15.0, False), (30.0, False)])
+
+    def test_setting_only_one_direction_leaves_the_other_alone(self):
+        self.assertEqual(
+            self._press(["LEFT", "RIGHT"], skip_forward_secs=45,
+                        use_web_seek=True),
+            [(-15.0, False), (45.0, False)])
+        self.assertEqual(
+            self._press(["LEFT", "RIGHT"], skip_forward_secs=45),
+            [(-5.0, False), (45.0, False)])
+
+
+class WheelSeekIsOnlyAGroupsToLoseTest(unittest.TestCase):
+    """The wheel is suppressed so a SyncPlay group does not hear a seek it
+    did not ask for. A seek claim by itself -- web seek, or a skip distance
+    -- has no group to protect, and silently took the wheel's seek away."""
+
+    def test_a_seek_claim_alone_leaves_the_wheel_to_mpv(self):
+        pm = _pm()
+        pm.claim_keys("seek", {SEEK})
+        body = _defined(pm)[-1]
+        self.assertIn("LEFT", body)
+        self.assertNotIn("WHEEL_LEFT", body)
+        self.assertNotIn("WHEEL_RIGHT", body)
+
+    def test_a_group_still_takes_it_whatever_else_is_claimed(self):
+        pm = _pm()
+        pm.claim_keys("seek", {SEEK})
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        body = _defined(pm)[-1]
+        self.assertIn("WHEEL_LEFT ignore", body)
+        self.assertIn("WHEEL_RIGHT ignore", body)
+
+    def test_leaving_the_group_gives_the_wheel_back(self):
+        pm = _pm()
+        pm.claim_keys("seek", {SEEK})
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        pm.claim_keys("syncplay", None)
+        self.assertNotIn("WHEEL_LEFT", _defined(pm)[-1])
+
+
+class SeekClaimFollowsTheSettingTest(unittest.TestCase):
+    """Skip Back / Skip Forward apply without a restart, so the standing
+    seek claim has to come and go with them."""
+
+    def test_the_gateway_hands_it_to_the_player(self):
+        from jellyfin_mpv_shim.mpvtk_browser.gateway import PlayerGateway
+
+        gw = PlayerGateway.__new__(PlayerGateway)
+        pm = mock.Mock()
+        gw._act = lambda fn: fn(pm)
+        gw.apply_seek_claim()
+        pm.refresh_seek_claim.assert_called_once_with()
+
+    def _step(self, pm, **kw):
+        with mock.patch("jellyfin_mpv_shim.player.settings",
+                        _skip_settings(**kw)):
+            pm.refresh_seek_claim()
+        return dict(pm._key_claims)
+
+    def test_set_clear_set(self):
+        pm = _pm()
+        pm.claim_keys("fullscreen", {FULLSCREEN})
+        pm.claim_keys("syncplay", {PAUSE, SEEK})
+        steps = [self._step(pm, skip_back_secs=20),
+                 self._step(pm),
+                 self._step(pm, skip_forward_secs=30)]
+        self.assertEqual([("seek" in c) for c in steps],
+                         [True, False, True])
+        for claims in steps:
+            self.assertEqual(claims["fullscreen"], {FULLSCREEN})
+            self.assertEqual(claims["syncplay"], {PAUSE, SEEK})
+
+    def test_the_arrows_are_claimed_only_while_it_is_set(self):
+        pm = _pm()
+        self._step(pm, skip_back_secs=20)
+        self.assertIn("LEFT repeatable script-message", _defined(pm)[-1])
+        self._step(pm)
+        self.assertFalse(_sections(pm)[PlayerManager.KEY_SECTION])
+        self.assertEqual(pm._key_actions, {})

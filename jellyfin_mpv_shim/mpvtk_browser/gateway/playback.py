@@ -52,6 +52,12 @@ class PlaybackMixin(GatewayCore):
         """
         self._act(lambda pm: pm.apply_browser_fullscreen())
 
+    def apply_seek_claim(self):
+        """Re-decide whether the left and right arrows are claimed, after
+        Skip Back / Skip Forward were written. Through ``_act`` for the
+        same reason as ``apply_browser_fullscreen``."""
+        self._act(lambda pm: pm.refresh_seek_claim())
+
     def on_minimize(self):
         """Drop to the windowless state. set_browse_window(False) releases
         force_window when nothing is playing; if a cast is in flight it

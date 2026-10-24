@@ -46,7 +46,7 @@ from .mpv_options import (REPLACES_OSC, build_mpv_options, mpv_scripts,
                           resolve_osc_style)
 from .session_reporter import SessionReporter
 from . import conf
-from .conf import settings
+from .conf import settings, skip_secs
 from .menu import OSDMenu
 from .osc_bridge import OscBridge
 from .constants import APP_NAME
@@ -2113,32 +2113,67 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         self._terminate_thread.start()
 
     #: What makes the shim's seek different from mpv's, and so what is worth
-    #: claiming a key for. Only ``use_web_seek`` is left: the six seek
-    #: distance settings moved into the user's input.conf in #16, and while
-    #: they were here they were actively misleading (a changed distance made
-    #: this return True, and the claim then seeked by the amount in *mpv's*
-    #: binding). ``skip_intro_on_seek`` is deliberately absent -- `_on_seeking`
-    #: applies it to any forward seek, mpv's own included, so a claim would
-    #: double-handle. See docs/mpv-backends.md section 5.
-    _MPV_EQUIVALENT_SEEK = {"use_web_seek": False}
+    #: claiming a key for: jellyfin-web's variable seek, and the Skip Back /
+    #: Skip Forward distances for the left and right arrows.
+    #:
+    #: The six old per-arrow distance settings moved into the user's
+    #: input.conf in #16 and stay out. While they were here they were
+    #: actively misleading: a changed distance made this return True, and the
+    #: claim then seeked by the amount in *mpv's* binding. That is why a
+    #: distance is only honoured through `_skip_override`, which puts the
+    #: setting's number in place of the binding's, and only for the two keys
+    #: the settings name. ``skip_intro_on_seek`` is deliberately absent --
+    #: `_on_seeking` applies it to any forward seek, mpv's own included, so a
+    #: claim would double-handle. See docs/mpv-backends.md section 5.
+    _MPV_EQUIVALENT_SEEK = {"use_web_seek": False, "skip_back_secs": None,
+                            "skip_forward_secs": None}
 
     def _seek_is_ours(self):
         """Whether the shim's seek does something mpv's cannot.
 
-        Four things can: a changed distance, an exact-seek flag,
-        jellyfin-web's variable seek, and skip-intro-on-seek. None of them
-        and seeking is mpv's outright -- the defaults here are `seek 60` /
-        `seek -60` / `seek 5` / `seek -5`, character for character what mpv
-        binds, so the old arrow bindings existed to reimplement mpv's
-        arrows exactly.
+        Two things can: jellyfin-web's variable seek, and a Skip Back /
+        Skip Forward distance. Neither and seeking is mpv's outright -- the
+        arrows are `seek 5` / `seek -5` and the rest are mpv's own, so the
+        old arrow bindings existed to reimplement mpv's arrows exactly.
 
-        Any of them and the keys are *claimed* rather than bound: the claim
+        Either and the keys are *claimed* rather than bound: the claim
         follows whatever currently means seek, so somebody who moved seeking
-        onto other keys gets their features there too, which four fixed
-        bindings never gave them.
+        onto other keys gets web seek there too, which four fixed bindings
+        never gave them.
         """
-        return any(getattr(settings, key, default) != default
-                   for key, default in self._MPV_EQUIVALENT_SEEK.items())
+        for key, default in self._MPV_EQUIVALENT_SEEK.items():
+            value = getattr(settings, key, default)
+            if key in ("skip_back_secs", "skip_forward_secs"):
+                value = skip_secs(value)
+            if value != default:
+                return True
+        return False
+
+    def _skip_override(self, key):
+        """Signed seconds the Skip Back / Skip Forward settings give ``key``,
+        or None when they have nothing to say about it.
+
+        Only a key named exactly LEFT or RIGHT -- in mpv's spelling from a
+        claimed key, or the remote's lowercase `left` / `right`. Up and
+        down, the shifted arrows, the media keys and the wheel keep whatever
+        mpv binds them to, even when they are claimed in the same section.
+        """
+        name = str(key).upper()
+        if name == "LEFT":
+            secs = skip_secs(settings.skip_back_secs)
+            return None if secs is None else -float(secs)
+        if name == "RIGHT":
+            secs = skip_secs(settings.skip_forward_secs)
+            return None if secs is None else float(secs)
+        return None
+
+    def refresh_seek_claim(self):
+        """Re-decide the standing seek claim after a seek setting changed,
+        so Skip Back / Skip Forward apply without a restart."""
+        from . import keysweep
+
+        self.claim_keys(
+            "seek", {keysweep.SEEK} if self._seek_is_ours() else None)
 
     def set_osc_style(self, style: str):
         """Override the resolved OSC style for this mpv instance.
@@ -2325,7 +2360,11 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         # corrects, and mpv binds WHEEL_LEFT/RIGHT to one. Suppressed for
         # the duration rather than routed: a wheel gesture delivers dozens
         # of notches, all to reach an operation the group would refuse.
-        suppress = ([] if keysweep.SEEK not in wanted
+        # Only for a group: the standing seek claim (web seek, a skip
+        # distance) has nobody to desync, and used to take the wheel's seek
+        # away.
+        suppress = ([] if keysweep.SEEK not in
+                    self._key_claims.get("syncplay", ())
                     else self._swept_pointers())
         try:
             if not claims and not suppress:
@@ -2367,7 +2406,15 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
             #
             # Nothing here for skip-intro: `_on_seeking` catches the seek
             # this is about to make, exactly as it catches mpv's own.
-            if settings.use_web_seek:
+            #
+            # Skip Back / Skip Forward come first, and only for LEFT and
+            # RIGHT: the user named those two keys' distances and nothing
+            # else's, and a number they typed beats a preference they may
+            # have set long before.
+            skip = self._skip_override(key)
+            if skip is not None:
+                amount = skip
+            elif settings.use_web_seek:
                 back, forward = self.get_seek_times()
                 amount = forward if amount > 0 else back
             self.seek(amount, exact=exact)
@@ -5601,14 +5648,18 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         """``(amount, exact)`` that pressing ``action`` on the keyboard
         would seek by, right now, on this mpv.
 
-        **Asked of mpv, not of a setting.** The seek distances left the
-        config in version 4, so the only place a distance lives is the
-        user's input.conf -- and the keyboard reads it from there whether
-        the key is mpv's own or one the shim claimed. A remote that kept
-        its own number would seek a different distance from the arrow key
-        beside it on the same machine, which is what it did while
-        `settings.seek_*` still existed and the keyboard had stopped
-        reading them.
+        **Asked of mpv, not of a setting.** The six per-arrow seek distances
+        left the config in version 4, so the distance for up, down and the
+        rest lives in the user's input.conf -- and the keyboard reads it
+        from there whether the key is mpv's own or one the shim claimed. A
+        remote that kept its own number would seek a different distance
+        from the arrow key beside it on the same machine, which is what it
+        did while `settings.seek_*` still existed and the keyboard had
+        stopped reading them.
+
+        The exception is Skip Back / Skip Forward, which are settings again
+        for the left and right arrows only; `kb_seek` puts them over the
+        amount this returns, exactly as the claimed key does.
         """
         from . import keysweep
 
@@ -5638,7 +5689,10 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
             self.menu.menu_action(action)
             return
         amount, exact = self._seek_like_the_keyboard(action)
-        if settings.use_web_seek:
+        skip = self._skip_override(action)
+        if skip is not None:
+            amount = skip
+        elif settings.use_web_seek:
             # Routed by sign, as the claimed-key path does: a binding says
             # which way it goes, never which arrow it was.
             back, forward = self.get_seek_times()

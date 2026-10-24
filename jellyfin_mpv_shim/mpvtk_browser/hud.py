@@ -13,7 +13,7 @@ import logging
 import time
 from typing import Optional
 
-from ..conf import settings
+from ..conf import settings, skip_secs
 from ..i18n import _
 from ..mpvtk.layout import natural_size
 from ..mpvtk.widgets import trigger_box
@@ -255,10 +255,8 @@ def _skip_distance(back):
     and again at click so a button drawn before a change still obeys it.
 
     A value under 1 (or not a number) is read as blank."""
-    value = settings.skip_back_secs if back else settings.skip_forward_secs
-    if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
-        return value
-    return _SKIP_DEFAULT[back]
+    return skip_secs(settings.skip_back_secs if back
+                     else settings.skip_forward_secs) or _SKIP_DEFAULT[back]
 
 
 def _skip_icon(back, secs):

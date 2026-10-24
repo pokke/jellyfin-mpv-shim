@@ -190,6 +190,21 @@ class SectionTest(unittest.TestCase):
         line = keysweep.section_lines(claims, "jms-key")
         self.assertEqual(line, "SPACE script-message jms-key pause SPACE")
 
+    def test_a_claimed_seek_still_repeats_when_held(self):
+        """mpv auto-repeats a held key only for commands that allow it, and
+        `script-message` does not. Measured on libmpv 2: holding LEFT under
+        mpv's own `seek -5` fired about 41 times in 1.2 s; the same key
+        claimed as a plain script-message fired once. `repeatable` gives
+        the repeat back. Pause and fullscreen are claimed too, and a held
+        SPACE must not toggle pause over and over."""
+        claims = [("LEFT", SEEK, (-5.0, False)), ("SPACE", PAUSE, None),
+                  ("f", FULLSCREEN, None)]
+        lines = keysweep.section_lines(claims, "jms-key").splitlines()
+        self.assertEqual(lines, [
+            "LEFT repeatable script-message jms-key seek LEFT",
+            "SPACE script-message jms-key pause SPACE",
+            "f script-message jms-key fullscreen f"])
+
     def test_a_key_name_with_a_space_survives(self):
         """The key travels in the message so the handler can re-issue it,
         which means it has to survive mpv's word-splitting.

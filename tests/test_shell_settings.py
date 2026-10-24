@@ -1217,6 +1217,52 @@ class TestBrowserFullscreenAppliesLive(unittest.TestCase):
         self.assertNotIn("browser_fullscreen", cfg.RESTART_REQUIRED)
 
 
+class TestSkipDistanceAppliesLive(unittest.TestCase):
+    """Skip Back / Skip Forward claim and release the left/right arrows, so
+    the player has to be told when one is written. The HUD buttons read the
+    setting themselves; this is the keyboard half."""
+
+    def _browser(self):
+        from unittest import mock
+
+        cfg = FakeConfig()
+        for key in ("skip_back_secs", "skip_forward_secs"):
+            cfg.schema[key] = "int"
+            cfg.values[key] = None
+        cfg.schema["use_web_seek"] = "bool"
+        cfg.values["use_web_seek"] = False
+        cfg.schema["player_name"] = "str"
+        cfg.values["player_name"] = "x"
+        b = MpvtkBrowser(app=mock.Mock(), source=FakeSource(),
+                         controller=mock.Mock(), config=cfg)
+        b._pool = _SyncPool()
+        return b
+
+    def test_each_write_reaches_the_player(self):
+        b = self._browser()
+        b._set_setting("skip_back_secs", 20)
+        b._set_setting("skip_forward_secs", 30)
+        b._set_setting("skip_back_secs", 5)
+        self.assertEqual(b.controller.apply_seek_claim.call_count, 3)
+
+    def test_an_unrelated_setting_does_not(self):
+        b = self._browser()
+        b._set_setting("player_name", "Bud")
+        b.controller.apply_seek_claim.assert_not_called()
+
+    def test_web_seek_is_not_hooked_in(self):
+        """It is not in the settings form (only the OSD menu toggles it),
+        so nothing here would be calling this for it."""
+        b = self._browser()
+        b._set_setting("use_web_seek", True)
+        b.controller.apply_seek_claim.assert_not_called()
+
+    def test_they_are_not_marked_as_needing_a_restart(self):
+        from jellyfin_mpv_shim.mpvtk_browser import config as cfg
+        self.assertNotIn("skip_back_secs", cfg.RESTART_REQUIRED)
+        self.assertNotIn("skip_forward_secs", cfg.RESTART_REQUIRED)
+
+
 class TestSelectKeyAppliesLive(unittest.TestCase):
     """Moving the select key re-pushes BOTH producers of it.
 

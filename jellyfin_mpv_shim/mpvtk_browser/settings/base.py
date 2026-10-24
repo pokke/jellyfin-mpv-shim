@@ -114,6 +114,14 @@ class SettingsBase:
             apply_fs = getattr(ctl, "apply_browser_fullscreen", None)
             if apply_fs is not None:
                 apply_fs()
+        if ok and key in ("skip_back_secs", "skip_forward_secs"):
+            # The buttons read the setting when drawn and clicked; the
+            # arrows are claimed or not at the moment the setting goes from
+            # blank to set and back, so the player has to be told.
+            ctl = getattr(self, "controller", None)
+            apply_claim = getattr(ctl, "apply_seek_claim", None)
+            if apply_claim is not None:
+                apply_claim()
         if ok and key == "work_offline":
             self._apply_work_offline(bool(value))
         if ok and key == "auto_download_enable" and value:

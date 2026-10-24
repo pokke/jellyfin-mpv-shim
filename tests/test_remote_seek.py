@@ -117,6 +117,48 @@ class RemoteSeekTest(unittest.TestCase):
                        use_web_seek=True),
             [(-15.0, False)])
 
+    # Skip Back / Skip Forward: the remote's left and right follow the same
+    # two numbers the left and right arrow keys do, so the two never differ.
+
+    def test_left_and_right_follow_the_skip_settings(self):
+        swept = [("LEFT", "seek", (-5.0, False)),
+                 ("RIGHT", "seek", (5.0, False))]
+        self.assertEqual(self._seek("left", swept, skip_back_secs=20),
+                         [(-20.0, False)])
+        self.assertEqual(self._seek("right", swept, skip_forward_secs=45),
+                         [(45.0, False)])
+
+    def test_up_and_down_do_not(self):
+        swept = [("UP", "seek", (60.0, False)),
+                 ("DOWN", "seek", (-60.0, False))]
+        self.assertEqual(
+            self._seek("up", swept, skip_back_secs=20, skip_forward_secs=45),
+            [(60.0, False)])
+        self.assertEqual(
+            self._seek("down", swept, skip_back_secs=20,
+                       skip_forward_secs=45),
+            [(-60.0, False)])
+
+    def test_a_skip_setting_beats_web_seek(self):
+        swept = [("LEFT", "seek", (-5.0, False))]
+        self.assertEqual(
+            self._seek("left", swept, skip_back_secs=20, use_web_seek=True),
+            [(-20.0, False)])
+
+    def test_a_skip_value_that_is_not_a_distance_is_ignored(self):
+        for bad in (0, -3):
+            with self.subTest(value=bad):
+                self.assertEqual(
+                    self._seek("left", [("LEFT", "seek", (-5.0, False))],
+                               skip_back_secs=bad),
+                    [(-5.0, False)])
+
+    def test_the_other_direction_is_left_alone(self):
+        self.assertEqual(
+            self._seek("left", [("LEFT", "seek", (-5.0, False))],
+                       skip_forward_secs=45),
+            [(-5.0, False)])
+
     def test_a_swept_read_that_raises_falls_back(self):
         class Boom(_Fake):
             def _swept_keys(self):
@@ -138,10 +180,15 @@ class RemoteSeekTest(unittest.TestCase):
 
 class SettingsAreGoneTest(unittest.TestCase):
     def test_the_seek_settings_are_no_longer_in_the_schema(self):
-        """They were dead: never in the settings UI or the README, and
-        after #16 a changed distance only bought a claim that then seeked
-        by mpv's amount anyway. [iw]: "should drop the dead settings
-        post-migration."
+        """The six per-arrow distances were dead: never in the settings UI
+        or the README, and after #16 a changed distance only bought a claim
+        that then seeked by mpv's amount anyway. [iw]: "should drop the dead
+        settings post-migration."
+
+        Skip Back / Skip Forward are not those settings back: they are two
+        numbers for the left and right arrows only, applied explicitly over
+        the binding's amount (`PlayerManager._skip_override`), which is the
+        part the old ones never had. The six stay out of the schema.
         """
         from jellyfin_mpv_shim.conf import Settings
 

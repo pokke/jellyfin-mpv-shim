@@ -129,6 +129,14 @@ DECLARED = {
         "remap it. The four arrows beside it are `kb_menu_*` and are the "
         "same question, which nobody has asked of them."
     ),
+    "player.py:PlayerManager._skip_override": (
+        OK,
+        "`LEFT` / `RIGHT` are mpv's own arrow keys, which is what "
+        "`skip_back_secs` / `skip_forward_secs` are defined over -- not the "
+        "OSD menu's `kb_menu_left` / `kb_menu_right`, which only share the "
+        "default spelling. The match is on a claimed key's name or the "
+        "remote's `left` / `right`, so there is nothing to resolve."
+    ),
     "app.py:MpvtkBrowser._shell_claimed_keys": (
         OPEN,
         "R2 -- OPEN. Claims the literal `SPACE` alongside the volume keys "
