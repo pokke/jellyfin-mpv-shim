@@ -7,6 +7,15 @@ on:
       - main
       - working
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: false
+env:
+  # The fork build identity (tools/stamp_fork_build.py): the release tag when
+  # release.yml called us, else the run number.
+  JMS_FORK_BUILD: ${{ inputs.tag || github.run_number }}
 jobs:
   build-win64:
     runs-on: windows-latest
