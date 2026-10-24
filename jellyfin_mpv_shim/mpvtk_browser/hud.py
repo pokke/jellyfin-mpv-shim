@@ -567,13 +567,16 @@ def _menu_rows(b, st, shed=None):
     elif kind in ("sub_delay", "audio_delay"):
         # Not leaves: the menu stays open so a press can be repeated, and
         # the value only changes on screen because we ask for the redraw.
+        # The value rides on the Reset row, so the submenu shows what it
+        # is changing.
         prop = kind.replace("_delay", "")
         for step in _DELAY_STEPS:
             rows.append((_("%+d ms") % round(step * 1000), None,
                          lambda s=step: _delay_ctl(
                              b, "adjust_%s_delay" % prop, s)))
-        rows.append((_("Reset"), None, lambda: _delay_ctl(
-            b, "reset_%s_delay" % prop)))
+        current = float(_ctl_get(b, "get_%s_delay" % prop, 0.0))
+        rows.append((with_current(_("Reset"), _fmt_ms(current)), None,
+                     lambda: _delay_ctl(b, "reset_%s_delay" % prop)))
     elif kind == "profiles":
         # The scope step, which is also the report: each row carries the
         # profile that scope holds and the winning one is marked, so a film

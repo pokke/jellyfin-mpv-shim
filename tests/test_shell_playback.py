@@ -1033,7 +1033,7 @@ class TestGearDelayMenus(unittest.TestCase):
                 items, _sel = self._menu(b)
                 self.assertEqual(
                     items, ["Back", "-1000 ms", "-100 ms", "+100 ms",
-                            "+1000 ms", "Reset"])
+                            "+1000 ms", "Reset  ·  0 ms"])
 
     def test_an_adjust_row_sends_the_step_and_keeps_the_menu_open(self):
         from unittest import mock
@@ -1066,6 +1066,18 @@ class TestGearDelayMenus(unittest.TestCase):
         self.assertEqual(self._root_label(b, "Audio Offset"),
                          "Audio Offset  ·  0 ms")
 
+    def test_the_submenu_itself_shows_the_value_it_is_changing(self):
+        # Pressing a step keeps the submenu open, so the value has to be
+        # in it: otherwise five presses of +100 ms give no feedback until
+        # the user backs out to the root row.
+        b, _ctl = self._browser()
+        b.hud.menu = "sub_delay"
+        for n in range(1, 4):
+            items, select = self._menu(b)
+            select(items.index("+100 ms"), "+100 ms")
+            items, _sel = self._menu(b)
+            self.assertIn("Reset  ·  +%d ms" % (100 * n), items)
+
     def test_repeated_presses_accumulate_rather_than_walk(self):
         b, ctl = self._browser()
         for n in range(1, 4):
@@ -1086,7 +1098,9 @@ class TestGearDelayMenus(unittest.TestCase):
                 items, select = self._menu(b)
                 with mock.patch.object(
                         b, "invalidate", wraps=b.invalidate) as inv:
-                    select(items.index("Reset"), "Reset")
+                    idx = next(i for i, l in enumerate(items)
+                               if l.startswith("Reset"))
+                    select(idx, items[idx])
                 self.assertIn((verb, ()), ctl.transport)
                 self.assertEqual(b.hud.menu, kind)
                 inv.assert_called()
