@@ -370,6 +370,16 @@ def heading_for(item):
     return title, context
 
 
+def next_up_label(item):
+    """The Next Up button's text: names the episode ("Next Up: S2E5") when
+    ``item`` carries both its season and its number, else plain "Next Up".
+    Season 0 is Specials and is spelled S0 like any other."""
+    s, e = (item or {}).get("ParentIndexNumber"), (item or {}).get("IndexNumber")
+    if s is None or e is None:
+        return _("Next Up")
+    return _("Next Up: %s") % ("S%dE%d" % (s, e))
+
+
 def section_offsets(elements, gap, pad=0):
     """Content-y of each element's top in a ``Column(pad=pad, gap=gap)`` —
     the snap breakpoints for a variable-height list (home sections, which

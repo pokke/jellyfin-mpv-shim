@@ -381,8 +381,11 @@ class FakeSource:
         return items[start_index:start_index + 20], len(items)
 
     def get_next_up(self, server_uuid, series_id):
+        # S1E4, because the series page's button names the episode and a
+        # DTO without them left that label unreachable.
         return {"Id": "nu1", "Name": "Next Ep", "Type": "Episode",
-                "SeriesId": series_id}
+                "SeriesId": series_id, "ParentIndexNumber": 1,
+                "IndexNumber": 4}
 
     def get_series_queue(self, server_uuid, series_id, start_item_id=None,
                          limit=100):

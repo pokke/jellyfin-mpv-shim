@@ -3114,6 +3114,111 @@ class TestSeasonPageShuffle(TestSeasonPageNextUp):
         nodes, _h = build_scene(b)
         self.assertNotIn("se-shuffle", ids(nodes))
 
+def _label_in(nodes, node_id):
+    """The text drawn inside the node ``node_id`` (a button), joined."""
+    box = next(n for n in nodes if n.get("id") == node_id)
+    return " ".join(
+        n["text"] for n in nodes
+        if n["t"] == "text"
+        and box["x"] <= n["x"] and n["x"] + n["w"] <= box["x"] + box["w"] + 1
+        and box["y"] <= n["y"] and n["y"] + n["h"] <= box["y"] + box["h"] + 1)
+
+
+class _CountingApp(StubHudApp):
+    """A renderer stand-in that counts the repaints it is asked for."""
+
+    def __init__(self):
+        super().__init__()
+        self.invalidations = 0
+
+    def invalidate(self, soon=False):
+        self.invalidations += 1
+
+
+class TestNextUpLabelNamesTheEpisode(unittest.TestCase):
+    """"Next Up: S2E5" on the series page and the season page, and the plain
+    "Next Up" when the episode cannot be named."""
+
+    def _series(self, app=None):
+        b = MpvtkBrowser(app=app, source=FakeSource(),
+                         controller=FakeController())
+        b._pool = _SyncPool()
+        b.server = "srv1"
+        route = {"kind": "series", "server": "srv1", "item_id": "sh1",
+                 "title": "Show"}
+        b.nav_stack = [route]
+        b._load_route(route)
+        return b, route
+
+    @staticmethod
+    def _ep(season, number, **kw):
+        return dict({"Id": "nu1", "Type": "Episode", "SeriesId": "sh1",
+                     "ParentIndexNumber": season, "IndexNumber": number}, **kw)
+
+    def test_the_series_button_names_the_episode(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 4)
+        b._load_route(b.route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up: S1E4")
+
+    def test_a_special_is_season_zero(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(0, 3)
+        b._load_route(b.route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up: S0E3")
+
+    def test_without_a_next_up_the_label_is_plain(self):
+        def boom(srv, sid):
+            raise OSError("server gone")
+
+        for answer in (lambda srv, sid: None, boom,
+                       lambda srv, sid: self._ep(None, 4),
+                       lambda srv, sid: self._ep(1, None)):
+            with self.subTest(answer=answer):
+                b, _r = self._series()
+                b.source.get_next_up = answer
+                b._load_route(b.route)
+                nodes, handlers = build_scene(b)
+                self.assertEqual(_label_in(nodes, "sa-nextup"), "Next Up")
+                self.assertIn("sa-nextup", handlers)
+
+    def test_the_season_button_names_the_episode(self):
+        b, route = TestSeasonPageNextUp()._season()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 2, Id="e2")
+        b._load_route(route)
+        nodes, _h = build_scene(b)
+        self.assertEqual(_label_in(nodes, "se-nextup"), "Next Up: S1E2")
+
+    def test_the_label_follows_a_refresh(self):
+        """The property over several steps: whatever the server now says is
+        next is what the button says, every time, and each one repaints."""
+        app = _CountingApp()
+        b, _r = self._series(app)
+        for season, number in ((1, 5), (2, 1), (2, 2), (0, 1)):
+            b.source.get_next_up = (
+                lambda srv, sid, s=season, n=number: self._ep(s, n))
+            before = app.invalidations
+            self.assertTrue(b._refresh_current({"series"}, "srv1"))
+            self.assertGreater(app.invalidations, before,
+                               "the refresh landed without a repaint")
+            nodes, _h = build_scene(b)
+            self.assertEqual(_label_in(nodes, "sa-nextup"),
+                             "Next Up: S%dE%d" % (season, number))
+
+    def test_the_click_still_resolves_on_the_worker(self):
+        b, _r = self._series()
+        b.source.get_next_up = lambda srv, sid: self._ep(1, 4)
+        b._load_route(b.route)
+        _n, handlers = build_scene(b)
+        # What it plays is decided when it is pressed, not by the label.
+        b.source.get_next_up = lambda srv, sid: self._ep(3, 9, Id="later")
+        played = []
+        b._actions.play = lambda item, server, **kw: played.append(item["Id"])
+        handlers["sa-nextup"]["click"]()
+        self.assertEqual(played, ["later"])
+
 class TestTileAndMetaParity(unittest.TestCase):
     """Small captions that carry most of the information on a tile."""
 

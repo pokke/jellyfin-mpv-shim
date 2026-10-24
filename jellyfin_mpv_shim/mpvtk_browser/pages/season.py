@@ -4,7 +4,7 @@ import logging
 
 from ...i18n import _
 from ...mpvtk.widgets import Column, Dropdown, Text, VScroll
-from ..components import chrome, controls, detail as detail_components
+from ..components import chrome, controls, detail as detail_components, labels
 from ..tile_renderer import GRID_GAP
 from .base import Page
 
@@ -188,7 +188,7 @@ class SeasonPage(Page):
             if next_up.get("Id") and any(
                     e.get("Id") == next_up["Id"] for e in episodes):
                 acts.append(controls.action_btn(
-                    "play_arrow", _("Next Up"), "se-nextup",
+                    "play_arrow", labels.next_up_label(next_up), "se-nextup",
                     lambda: actions.play_next_up(route["series_id"], server),
                     primary=True))
             else:
