@@ -35,6 +35,19 @@ config_path = None
 #      answers.
 CONFIG_VERSION = 6
 
+#: Keys a migration took out of the schema on purpose, and which must leave
+#: conf.json. Every other key this build has no field for is kept on save
+#: (another build -- older, or upstream's next to a fork -- may own it), so a
+#: migration that retires a key adds it here.
+RETIRED_KEYS = frozenset((
+    # 2: folded into segment_intro / segment_outro.
+    "skip_intro_always", "skip_intro_enable",
+    "skip_credits_always", "skip_credits_enable",
+    # 4: moved into the user's input.conf.
+    "seek_up", "seek_down", "seek_right", "seek_left",
+    "seek_v_exact", "seek_h_exact",
+))
+
 #: The three answers `notify_updates` takes. Also what the migration uses to
 #: recognise a value that has already been migrated.
 _NOTIFY_STATES = ("default", "enabled", "disabled")
@@ -1140,6 +1153,13 @@ class Settings(SettingsBase):
                             )
                         )
 
+                # Kept for save(): a key this build has no field for may
+                # belong to another build, and dropping it here would reset
+                # it there.
+                self.__dict__["_unknown"] = {
+                    k: v for k, v in data.items()
+                    if k not in self.__fields__ and k not in RETIRED_KEYS}
+
                 log.info("Loaded settings from json: %s" % path)
                 migrated = self._migrate(data)
                 if migrated or input_params < len(self.__fields__):
@@ -1181,8 +1201,10 @@ class Settings(SettingsBase):
         with _save_lock:
             tmp = config_path + ".tmp"
             try:
+                payload = dict(self.__dict__.get("_unknown") or {})
+                payload.update(self.dict())
                 with open(tmp, "w", encoding=self.WRITE_ENCODING) as fh:
-                    json.dump(self.dict(), fh, indent=4, sort_keys=True)
+                    json.dump(payload, fh, indent=4, sort_keys=True)
                     fh.flush()
                 os.replace(tmp, config_path)
             except Exception as e:
