@@ -436,7 +436,8 @@ class TestChromePolish(unittest.TestCase):
                                  "top bar overflows at %dpx" % w)
 
 class TestSearchBoxClear(unittest.TestCase):
-    """An X beside the top-bar search box empties it.
+    """The top-bar search box carries its own icons: a magnifier at the
+    left edge that submits, and an X at the right edge that empties it.
 
     Shown only while there is something to clear, so the field's first
     keystroke and the clear both have to ask for a repaint: the box itself
@@ -492,6 +493,100 @@ class TestSearchBoxClear(unittest.TestCase):
             h["nav-search"]["change"](term)
         self.assertEqual(self.drawn, [],
                          "a redraw per keystroke resets the caret")
+
+    def _geometry(self, width):
+        _n, h = self._node("nav-search")
+        h["nav-search"]["change"]("a long enough term to fill the field")
+        nodes, _h = build_scene(self.b, size=(width, 900))
+        by = {n.get("id"): n for n in nodes}
+        return by["nav-search"], by["nav-search-clear"], by["nav-search-go"]
+
+    def test_the_x_is_inside_the_field_at_its_right_edge(self):
+        # 760 is the compact bar (a 180px field), 1920 the normal one.
+        for width, field_w in ((760, 180), (1920, 268)):
+            with self.subTest(width=width):
+                box, x, _go = self._geometry(width)
+                self.assertEqual(box["w"], field_w)
+                self.assertGreaterEqual(x["x"], box["x"])
+                self.assertLessEqual(x["x"] + x["w"], box["x"] + box["w"])
+                self.assertEqual(
+                    x["y"] + x["h"] / 2, box["y"] + box["h"] / 2,
+                    "the X is not vertically centred in the field")
+                self.assertGreaterEqual(
+                    box["x"] + box["w"] - (x["x"] + x["w"]), 2,
+                    "the X is hard against the border")
+
+    def test_text_and_caret_stop_short_of_both_icons(self):
+        for width in (760, 1920):
+            with self.subTest(width=width):
+                box, x, go = self._geometry(width)
+                self.assertLessEqual(
+                    box["x"] + box["w"] - box["pr"], x["x"],
+                    "the text area runs under the X")
+                self.assertGreaterEqual(
+                    box["x"] + box["pl"], go["x"] + go["w"],
+                    "the text area runs under the magnifier")
+
+    def test_the_reserved_room_scales_with_the_x(self):
+        """`pr` is pixel geometry like the X it makes room for: scaled with
+        it, or at 200% the text would run under the button."""
+        from jellyfin_mpv_shim.mpvtk import scaling
+        try:
+            for scale in (1.0, 1.5, 2.0):
+                with self.subTest(scale=scale):
+                    scaling.set_scale(1.0)
+                    box, x, go = self._geometry(1920)
+                    box, x, go = dict(box), dict(x), dict(go)
+                    scaling.set_scale(scale)
+                    scaling.scale_scene([box, x, go])
+                    self.assertLessEqual(
+                        box["x"] + box["w"] - box["pr"], x["x"])
+                    self.assertGreaterEqual(
+                        box["x"] + box["pl"], go["x"] + go["w"])
+        finally:
+            scaling.set_scale(1.0)
+
+    def test_the_magnifier_is_inside_the_field_at_its_left_edge(self):
+        for width in (760, 1920):
+            with self.subTest(width=width):
+                box, _x, go = self._geometry(width)
+                self.assertGreaterEqual(go["x"], box["x"])
+                self.assertLessEqual(go["x"] + go["w"],
+                                     box["x"] + box["w"])
+                self.assertEqual(go["y"] + go["h"] / 2,
+                                 box["y"] + box["h"] / 2)
+                self.assertGreaterEqual(go["x"] - box["x"], 2)
+
+    def test_the_magnifier_submits_what_is_in_the_box(self):
+        """Read when clicked, not when the bar was built."""
+        searched = []
+        self.b._search = searched.append
+        _n, h = self._node("nav-search")
+        h["nav-search"]["change"]("alien")
+        _n, h = self._node("nav-search-go")
+        h["nav-search-go"]["click"]()
+        h["nav-search"]["change"]("heat")
+        h["nav-search-go"]["click"]()
+        self.assertEqual(searched, ["alien", "heat"])
+
+    def test_the_magnifier_is_present_when_the_box_is_empty(self):
+        node, _h = self._node("nav-search-go")
+        self.assertIsNotNone(node)
+        self.assertTrue(node.get("tip"))
+
+    def test_neither_icon_is_a_second_focus_stop(self):
+        """Deliberate: Enter in the field submits, the remote's Search key
+        focuses the field, and the box owns LEFT/RIGHT while typed into --
+        a stop beside it would only be reachable by leaving the field."""
+        _box, x, go = self._geometry(1280)
+        self.assertTrue(x.get("nnav"))
+        self.assertTrue(go.get("nnav"))
+
+    def test_the_x_empties_the_box_in_the_renderer(self):
+        """The text is renderer-local, so the X names the box to empty
+        and the renderer does it (and keeps the keyboard on the box)."""
+        _box, x, _go = self._geometry(1280)
+        self.assertEqual(x.get("clr"), "nav-search")
 
 
 class TestBackButtonHistoryMenu(unittest.TestCase):

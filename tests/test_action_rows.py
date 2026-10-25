@@ -53,8 +53,9 @@ SCREENS = [
 
 #: Node ids that sit ON an action row's baseline without being one of its
 #: buttons -- a dropdown is a different control with its own height, and
-#: the grid's sort picker is deliberately one (see UI_FIXES_4 §33).
-NOT_A_BUTTON = ("grid-sort",)
+#: the grid's sort picker is deliberately one (see UI_FIXES_4 §33). The
+#: search field's magnifier and X are icons INSIDE a field, not buttons.
+NOT_A_BUTTON = ("grid-sort", "nav-search-go", "nav-search-clear")
 
 
 def _rows(nodes):

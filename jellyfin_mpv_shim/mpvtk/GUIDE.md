@@ -95,7 +95,10 @@ reader sized its page bitmap from the fallback for its whole life this
 way, which was right until anything else shared the window.
 
 Inputs: `TextBox` (editing, paste, selection, `mask=True` for
-passwords; `on_change`/`on_submit`), `Dropdown` (readonly picker,
+passwords; `on_change`/`on_submit`; `pad_l`/`pad_r` reserve room in the text
+area for icons laid over its edges in a `Stack` -- a `Box(clears=<id>)`
+empties the box and keeps the keyboard on it, renderer-side, and any `Box`
+may take `nnav=True` to stay out of the arrow-key order), `Dropdown` (readonly picker,
 `on_select`), `Slider` (`on_change`, throttled while dragging;
 seek-style sliders add `on_commit` — once, when the drag/adjust
 gesture ends — and `on_cancel` — gesture abandoned via ESC or focus

@@ -259,9 +259,18 @@ def resize_grip(b, w, h):
         x=w - RESIZE_GRIP, y=h - RESIZE_GRIP)
 
 
+#: The icons inside the search field -- the magnifier at the left edge, the
+#: X at the right -- each a round hit box with a glyph in it, inset from the
+#: edge. The text area gives up everything they take, plus a 5px breath.
+SEARCH_BOX = 26
+SEARCH_GLYPH = 15
+SEARCH_INSET = 5
+SEARCH_ROOM = SEARCH_BOX + SEARCH_INSET + 5
+
+
 def _set_search_term(b, value):
     """Store the search box's text. Repaints only when the box goes from
-    empty to not or back, since that is all the X beside it depends on:
+    empty to not or back, since that is all the X in it depends on:
     a repaint per keystroke would fight the caret."""
     had = bool(b._search_box.get("term"))
     b._search_box["term"] = value or ""
@@ -411,35 +420,59 @@ def chrome_bar(b, compact, probe=False, servers=None,
             popup_w=380,     # see the server picker above
             icons=["lock" if u.get("locked") else "person" for u in users],
             on_select=lambda i, v: b._switch_user(users[i])))
-    right += [
+    # Wide enough for the icons inside it: the Search button that used to sit
+    # beside the field is now part of it, and its width went with it.
+    field_w = 180 if compact else 268
+
+    def field_icon(nid, icon, tip, anchor, dx, on_click, **kw):
+        # No fill at rest and a round wash on hover, so it reads as part of
+        # the field rather than as a button parked on it; the glyph is muted
+        # and comes up to full strength under the pointer.
+        return Box(
+            [Icon(icon, SEARCH_GLYPH, color=theme.SUBTLE_FG,
+                  hover_parent=nid, hover_tint=theme.TEXT_FG)],
+            id=nid, w=SEARCH_BOX, h=SEARCH_BOX, anchor=anchor, dx=dx,
+            direction="row", align="center", justify="center",
+            radius=SEARCH_BOX // 2, tip=tip, on_click=on_click,
+            hover={"circle": True, "fill": theme.TEXT_FG, "a": 45}, **kw)
+
+    search_field = [
         TextBox("nav-search", placeholder=_("Search…"),
-                # "large", to match the Search button glued to its right
-                # and the nav buttons either side. A TextBox derives its
-                # height from its type size, and Buttons do not -- so when
-                # the control default moved 20 -> 17 this field alone got
-                # 3.7px shorter and sat 1.9px lower than the button it
-                # abuts, on every screen.
+                # "large", to match the nav buttons either side. A TextBox
+                # derives its height from its type size, and Buttons do not
+                # -- so when the control default moved 20 -> 17 this field
+                # alone got 3.7px shorter and sat 1.9px lower than the
+                # buttons it sits among, on every screen.
                 size="large",
-                w=140 if compact else 220,
+                w=field_w,
                 # The scene's text wins only while it is empty, which is
                 # what lets the X below clear the box; always forcing would
                 # reset the caret on every repaint while typing.
                 text=b._search_box.get("term", ""),
                 force=not b._search_box.get("term"),
+                # Reserved whether or not the X is showing, so the first
+                # keystroke does not move the text it is typing.
+                pad_l=SEARCH_ROOM, pad_r=SEARCH_ROOM,
                 on_change=lambda v: _set_search_term(b, v),
                 on_submit=b._search),
+        # The textbox submits on Enter, but a visible magnifier is the
+        # discoverable affordance (and the only one with a pointer). Out of
+        # the arrow-key order: Enter in the field does the same, and a focus
+        # ring round a glyph inside a field would only be in the way.
+        field_icon("nav-search-go", "search", _("Search"), "w",
+                   SEARCH_INSET,
+                   lambda: b._search(b._search_box.get("term", "")),
+                   nnav=True),
     ]
     if b._search_box.get("term"):
-        right.append(Button("", id="nav-search-clear", icon="close",
-                            size="large", tip=_("Clear search"),
-                            on_click=lambda: _set_search_term(b, "")))
+        # The box empties itself renderer-side (`clears`) and keeps the
+        # keyboard, so the handler only has to agree with it.
+        search_field.append(field_icon(
+            "nav-search-clear", "close", _("Clear search"), "e",
+            -SEARCH_INSET, lambda: _set_search_term(b, ""),
+            clears="nav-search"))
     right += [
-        # The textbox submits on Enter, but a visible button is the
-        # discoverable affordance (and the only one with a pointer).
-        Button("", id="nav-search-go", icon="search", size="large",
-               tip=_("Search"),
-               on_click=lambda: b._search(
-                   b._search_box.get("term", "")), **accent_style),
+        Stack(search_field, w=field_w),
         nav_button(_("Settings"), "nav-settings", "settings",
                    b._open_settings),
     ]

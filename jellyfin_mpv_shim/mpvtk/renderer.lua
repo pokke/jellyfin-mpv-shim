@@ -1213,7 +1213,7 @@ end
 
 -- Codepoint boundary (byte offset) nearest to screen x.
 local function tb_index_at(node, tb, x)
-    local pad = 10
+    local pad = node.pl or 10
     local ex = select(1, eff(node))
     local rel = x - ex - pad + tb.shift
     local pen = 0
@@ -1292,15 +1292,16 @@ local function draw_textbox(ass, node, ex, ey, clip)
     -- see draw_dropdown: shape kept, contrast dropped
     local ink = node.dis and state.tok.on_surface_faint
         or state.tok.on_surface
-    local pad = 10
+    local pad = node.pl or 10      -- room for icons laid over the edges
+    local rpad = node.pr or 10
     local inner = {
         x1 = math.max(ex + pad, clip and clip.x1 or 0),
         y1 = clip and math.max(ey, clip.y1) or ey,
-        x2 = math.min(ex + node.w - pad, clip and clip.x2 or state.w),
+        x2 = math.min(ex + node.w - rpad, clip and clip.x2 or state.w),
         y2 = clip and math.min(ey + node.h, clip.y2) or ey + node.h,
     }
     local tnode = {
-        w = node.w - 2 * pad, h = node.h,
+        w = node.w - pad - rpad, h = node.h,
         size = node.size, align = 'left',
     }
     local text = tb and tb.text or node.text or ''
@@ -2871,8 +2872,8 @@ local function tb_state(node)
 end
 
 local function tb_fix_shift(node, tb)
-    local pad = 10
-    local avail = node.w - 2 * pad
+    local pad = node.pl or 10
+    local avail = node.w - pad - (node.pr or 10)
     local cx = tb_text_w(node, tb.text, tb.cursor)
     if cx - tb.shift > avail then tb.shift = cx - avail end
     if cx - tb.shift < 0 then tb.shift = cx end
@@ -3576,6 +3577,16 @@ local function send_click(node)
         c[#c + 1] = { id = node.id, line = debug.getinfo(2, 'l').currentline }
         if #c > 8 then table.remove(c, 1) end
         state.obs_clicks = c
+    end
+    -- A clear button: empty the box it names and keep the keyboard on it.
+    -- Done here, in the renderer-local edit state, because the app's answer
+    -- is a scene push and a push cannot reach a box that is being typed into.
+    local tbn = node.clr and state.byid[node.clr]
+    if tbn and tbn.t == 'textbox' then
+        focus_textbox(tbn)
+        local tb = tb_state(tbn)
+        tb.text, tb.cursor, tb.sel, tb.shift = '', 0, nil, 0
+        tb_changed(tbn, tb)
     end
     local m = state.mods or {}
     send({
@@ -6984,7 +6995,7 @@ mp.register_script_message('mpvtk-debug', function(json)
             local tb = tb_state(node)
             local ex, ey = eff(node)
             local cy = ey + node.h / 2
-            local pad = 10
+            local pad = node.pl or 10
             local xa = ex + pad - tb.shift +
                 tb_text_w(node, tb.text, cmd.a or 0)
             local xb = ex + pad - tb.shift +
@@ -7008,7 +7019,7 @@ mp.register_script_message('mpvtk-debug', function(json)
             local tb = tb_state(node)
             local ex, ey = eff(node)
             local at = cmd.at or 0
-            local xa = ex + 10 - tb.shift +
+            local xa = ex + (node.pl or 10) - tb.shift +
                 (tb_text_w(node, tb.text, at) +
                  tb_text_w(node, tb.text,
                      math.min(#tb.text, at + 1))) / 2

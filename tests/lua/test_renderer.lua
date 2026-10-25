@@ -4223,6 +4223,84 @@ scene({ { id = "t", t = "text", x = 10, y = 10, w = 200, h = 30,
           size = 20, c = "ffffff", text = "Hxg" } })
 eq(fs_in_ass(), 20, "a metrics message with no stretch changed the size")
 
+-- ============================================ textbox clear button
+--
+-- The X inside a search field is a node of its own laid over the box's right
+-- edge (`clr` names the box it empties). Emptying has to happen HERE, in the
+-- renderer-local edit state, and keep the keyboard on the box: the app's
+-- answer is a scene push, and a force-reset cannot reach a box that is being
+-- typed into.
+
+local function tb_of(id)
+    fake.reset_events()
+    fake.send("mpvtk-debug", fake.token({ cmd = "state" }))
+    return ((last_event("debug_state") or {}).tb or {})[id]
+end
+
+local function clear_scene(text, extra)
+    local box = textbox("find", text, 0)
+    for k, v in pairs(extra or {}) do box[k] = v end
+    scene({
+        box,
+        { id = "find-clear", t = "rect", x = 168, y = 2, w = 26, h = 26,
+          click = true, clr = "find" },
+    })
+end
+
+scene({})
+clear_scene("ripley")
+click("find-clear")
+local chg = last_event("change")
+ok(chg ~= nil and chg.id == "find" and chg.value == "",
+   "the app is told the box is empty, as for any other edit")
+local cleared = tb_of("find")
+ok(cleared ~= nil and cleared.text == "",
+   "clicking the X emptied the box's own text",
+   cleared and cleared.text or "no edit state")
+fake.reset_events()
+type_text("a")
+chg = last_event("change")
+ok(chg ~= nil and chg.id == "find" and chg.value == "a",
+   "the box still has the keyboard after the X, so typing carries on")
+
+-- Several rounds: the property is that the box keeps working, not that one
+-- click happened to empty it.
+for _, word in ipairs({ "alien", "heat", "ronin" }) do
+    type_text(word)
+    click("find-clear")
+    local t = tb_of("find")
+    ok(t ~= nil and t.text == "" and t.cursor == 0,
+       "the X empties the box on every use: " .. word)
+end
+
+-- The room the X takes (`pr`, against the stock 10) is out of the text area,
+-- so the caret scrolls into view that much sooner instead of running under
+-- the button.
+local function shift_after_typing(extra)
+    scene({})
+    clear_scene("", extra)
+    click("find")
+    type_text(string.rep("m", 40))
+    return (tb_of("find") or {}).shift or 0
+end
+local plain = shift_after_typing(nil)
+local roomy = shift_after_typing({ pr = 30 })
+eq(roomy - plain, 30 - 10,
+   "a right inset narrows the text area by exactly that")
+
+-- ...and a left one moves where the first character is drawn and clicked:
+-- a click at the box's left edge still lands before the text, one past the
+-- inset lands inside it.
+scene({})
+clear_scene("abcdef", { pl = 40 })
+click("find")                  -- the centre: somewhere in the text
+fake.send("mpvtk-debug", fake.token({ cmd = "tbdrag", id = "find",
+                                      a = 0, b = 3 }))
+local sel = tb_of("find")
+ok(sel ~= nil and sel.cursor == 3 and sel.sel == 0,
+   "a left inset is honoured when mapping a pointer to a character",
+   sel and (tostring(sel.sel) .. "," .. tostring(sel.cursor)) or "no state")
+
 -- ========================================================== teardown
 
 scene({})

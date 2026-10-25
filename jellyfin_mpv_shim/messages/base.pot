@@ -6951,7 +6951,8 @@ msgctxt "12-hour clock"
 msgid "PM"
 msgstr ""
 
-#. Tooltip of the navigation bar's search button. A verb.
+#. Tooltip of the navigation bar's search button (and of the magnifier icon
+#. inside its search field, which submits the search). A verb.
 #: jellyfin_mpv_shim/mpvtk_browser/views.py
 #: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
 msgid "Search"
@@ -7017,7 +7018,7 @@ msgstr ""
 msgid "Search…"
 msgstr ""
 
-#. Tooltip of the X button beside the search field on the navigation bar;
+#. Tooltip of the X icon inside the search field on the navigation bar;
 #. empties the field. Shown only while the field has text in it.
 #: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
 msgid "Clear search"

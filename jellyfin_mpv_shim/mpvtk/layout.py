@@ -658,6 +658,10 @@ def _arrange_textbox(ctx, el, x, y, w, h, sc, path):
         node["mask"] = True
     if el.force:
         node["force"] = True
+    if el.pad_l is not None:
+        node["pl"] = el.pad_l
+    if el.pad_r is not None:
+        node["pr"] = el.pad_r
     _reg(ctx, node["id"], "change", el.on_change)
     _reg(ctx, node["id"], "submit", el.on_submit)
     _reg(ctx, node["id"], "commit", el.on_commit)
@@ -1078,6 +1082,12 @@ def _arrange_box(ctx, el, x, y, w, h, sc, path):
             node["wdrag"] = True
         if getattr(el, "window_resize", None):
             node["wsize"] = el.window_resize
+        if getattr(el, "clears", None):
+            node["clr"] = el.clears
+        if getattr(el, "clears", None) or getattr(el, "nnav", False):
+            # Not a stop of its own: the box it empties owns LEFT/RIGHT
+            # while it is typed into, and the pointer is what reaches this.
+            node["nnav"] = True
         ctx.nodes.append(node)
     _arrange_children(ctx, el, x, y, w, h, sc, path)
     return

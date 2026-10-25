@@ -101,6 +101,14 @@ class Box(Element):
         # mpv has no "begin resizing" command, so the renderer writes
         # `geometry`, which every VO honours as a resize.
         window_resize=None,
+        # Clicking this box empties the TextBox with this id and leaves the
+        # keyboard on it -- a clear button laid over the field's edge (see
+        # ``TextBox.pad_r``), and so ``nnav``. Renderer-side because the box's text is renderer-local,
+        # and a scene push cannot reach one being typed into.
+        clears=None,
+        # Out of the spatial-nav order (still clickable and hoverable): for
+        # a control whose job is done another way from the keyboard.
+        nnav=False,
         **kw,
     ):
         super().__init__(**kw)
@@ -126,6 +134,8 @@ class Box(Element):
         self.repeat = repeat
         self.window_drag = window_drag
         self.window_resize = window_resize
+        self.clears = clears
+        self.nnav = nnav
 
 
 class Row(Box):
@@ -394,6 +404,12 @@ class TextBox(Element):
         # agreed, so it does not also fire; ESC reverts and stays silent.
         on_commit=None,
         force=False,  # override renderer-local edit state with ``text``
+        # Left/right padding of the text area, 10px by default. Room for
+        # something laid over a field's edge (a ``Stack`` child, e.g. a
+        # ``Box(clears=...)`` or a magnifier): text and caret stop short of
+        # it instead of running underneath.
+        pad_l=None,
+        pad_r=None,
         **kw,
     ):
         size = theme.size('NORMAL') if size is None else theme.text_size(size)
@@ -407,6 +423,8 @@ class TextBox(Element):
         self.on_submit = on_submit
         self.on_commit = on_commit
         self.force = force
+        self.pad_l = pad_l
+        self.pad_r = pad_r
 
 
 class Slider(Element):

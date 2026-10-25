@@ -80,7 +80,7 @@ def _round(v):
 # against the button's 26 -- which is the drift tests/test_hud_icon_sizes.py
 # is named after (#721).
 _PX_KEYS = ("x", "y", "w", "h", "radius", "bw", "pw", "cw", "ch",
-            "rh", "snap", "snap_off", "off0", "isz")
+            "rh", "snap", "snap_off", "off0", "isz", "pl", "pr")
 
 # Scaled but NOT rounded: a font size is not a box, and rounding one makes
 # the text render wider than the width layout fitted it to. The LINE BOX
