@@ -74,7 +74,7 @@ jobs:
       # gettext and unzip for gen_pkg.sh.
       run: |
         sudo apt-get update
-        sudo apt-get install -y libmpv2 xvfb libfribidi0 libharfbuzz0b libraqm0 fonts-dejavu-core fonts-noto-cjk gettext unzip
+        sudo apt-get install -y libmpv2 xvfb libfribidi0 libharfbuzz0b libraqm0 fonts-dejavu-core fonts-noto-cjk fonts-noto-color-emoji gettext unzip
     - name: Install dependencies
       run: |
         pip install wheel pyyaml
@@ -90,6 +90,8 @@ jobs:
         if [ "$status" -ne 0 ]; then
           grep -E "^FAILED modules:" unit.log | sed 's/^/::error::/' || true
           grep -E -A4 "^(FAIL|ERROR): " unit.log | head -c 3500             | python3 -c "import sys; print('::error title=Failing tests::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          # A snapshot failure is a line diff ("- {...}" / "+ {...}").
+          grep -E "^[-+] \{" unit.log | head -c 6000             | python3 -c "import sys; print('::error title=Snapshot diff::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
         fi
         exit $status
   publish:
