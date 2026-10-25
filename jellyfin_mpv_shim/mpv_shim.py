@@ -395,9 +395,10 @@ def main():
                 except Exception:
                     log.debug("could not stop the tray", exc_info=True)
             single.release()
-            from . import restart
+            from . import fork_update, restart
 
             restart.relaunch_if_requested()
+            fork_update.run_installer_if_requested()
 
         exit_watchdog.set_final_action(final_action)
         # Covers the quit paths that do not start at a window close (tray

@@ -7085,6 +7085,45 @@ msgstr ""
 msgid "Do not mention this version again"
 msgstr ""
 
+#. Button on the update banner that downloads the new version, closes the
+#. app, installs it and starts it again, in one click. An imperative verb
+#. phrase. Only shown in builds that can do this.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+msgid "Install update"
+msgstr ""
+
+#. Tooltip of the update banner's "Install update" button. Two sentences:
+#. what the button does, then a warning that Windows can show its own
+#. administrator-approval (UAC) prompt.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+msgid ""
+"Download and install this version, then restart. Windows may ask for "
+"administrator approval."
+msgstr ""
+
+#. Update banner text while the new version is being downloaded. "%d" is a
+#. whole number from 0 to 99, the percentage done; keep the "%%", which
+#. prints a percent sign. The ellipsis means it is still going.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+#, python-format
+msgid "Downloading update… %d%%"
+msgstr ""
+
+#. Update banner text once the download is finished and the app is closing
+#. so the installer can run. The app starts again by itself afterwards.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+msgid "Installing the update — the app will restart."
+msgstr ""
+
+#. Update banner text when downloading or starting the update failed. "%s"
+#. is a short technical reason in English, such as "installer is the wrong
+#. size". The "Install update" button comes back beside it so the user can
+#. try again.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+#, python-format
+msgid "Update failed: %s"
+msgstr ""
+
 #. Banner across the top of the library after something the user asked
 #. for failed because the server could not be reached. Followed by the
 #. "Retry" and "Go Offline" buttons.

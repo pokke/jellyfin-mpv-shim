@@ -7,7 +7,7 @@ import webbrowser
 
 from urllib.parse import urljoin, urlsplit
 
-from . import fork
+from . import fork, fork_update
 from .constants import CLIENT_VERSION
 from .conf import settings
 from .i18n import _
@@ -219,8 +219,8 @@ class UpdateChecker:
         return self.new_version is not None
 
     def check(self):
-        if fork.IS_FORK:  # see fork.py
-            return
+        if fork.IS_FORK:  # see fork_update.py
+            return fork_update.check(self)
 
         if not settings.check_updates:
             return
