@@ -64,7 +64,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
 
         self.assertTrue(skipped(["docs/packaging.md"]))
         self.assertTrue(skipped(["tests/test_x.py", "README.md"]))
-        self.assertTrue(skipped(["jellyfin_mpv_shim/notes.md"]))
+        self.assertTrue(skipped(["jellyfin_mpv_shim/mpvtk/GUIDE.md"]))
         self.assertFalse(skipped(["jellyfin_mpv_shim/player.py"]))
         self.assertFalse(skipped(["jellyfin_mpv_shim/player.py",
                                   "docs/packaging.md"]))
