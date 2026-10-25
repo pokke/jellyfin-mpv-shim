@@ -133,6 +133,22 @@ class FindUpdateTest(unittest.TestCase):
         self.assertIsNone(fu.find_update(2, None))
 
 
+class PinnedSourceTest(unittest.TestCase):
+    def test_releases_are_asked_for_by_numeric_repository_id(self):
+        """A name can be released and re-registered by someone else; the id
+        cannot."""
+        self.assertIn("/repositories/1429589493/releases", fu.API_URL)
+        self.assertNotIn("pokke/jellyfin-mpv-shim", fu.API_URL)
+
+    def test_asset_names_must_match_in_full(self):
+        for name in ("jellyfin-mpv-shim_3.3.0-pokke.4_installer.exe\n",
+                     "jellyfin-mpv-shim_..\\x-pokke.4_installer.exe",
+                     "jellyfin-mpv-shim_../x-pokke.4_installer.exe",
+                     "jellyfin-mpv-shim_3 .3-pokke.4_installer.exe"):
+            rel = release(4, assets=[asset(4, name=name)])
+            self.assertIsNone(fu.find_update(2, [rel]), repr(name))
+
+
 class BuildNumberTest(unittest.TestCase):
     def _with(self, suffix, **extra):
         return mock.patch.multiple(fu.fork, SUFFIX=suffix,
@@ -242,6 +258,32 @@ class CheckTest(unittest.TestCase):
 
     def test_not_a_fork_never_looks(self):
         with mock.patch.object(fu.fork, "IS_FORK", False):
+            self._run(_Checker())
+        self.fetch.assert_not_called()
+
+    def test_the_platform_probe_runs_off_the_calling_thread(self):
+        """``platform.machine()`` can be slow on its first call."""
+        caller = threading.current_thread()
+        seen = []
+        gate = threading.Event()
+
+        def probe():
+            seen.append(threading.current_thread())
+            gate.wait(5)
+            return True
+
+        with mock.patch.object(fu, "_platform_ok", probe):
+            try:
+                fu.check(_Checker())
+                self.assertNotIn(caller, seen)
+            finally:
+                gate.set()
+            fu._thread.join(5)
+        self.assertEqual(len(seen), 1)
+        self.assertIsNot(seen[0], caller)
+
+    def test_a_machine_the_installer_is_not_for_is_never_asked(self):
+        with mock.patch.object(fu, "_platform_ok", lambda: False):
             self._run(_Checker())
         self.fetch.assert_not_called()
 
@@ -400,7 +442,7 @@ class DownloadTest(unittest.TestCase):
             with open(staged.path, "rb") as f:
                 self.assertEqual(f.read(), PAYLOAD)
             self.assertTrue(staged.path.startswith(self.tmp))
-            self.assertEqual(os.path.basename(staged.path), self.offer.name)
+            self.assertEqual(os.path.basename(staged.path), "setup.exe")
         finally:
             staged.close()
 
@@ -467,6 +509,16 @@ class DownloadTest(unittest.TestCase):
 
     def test_a_redirect_without_a_location_is_refused(self):
         self._refused(None, hops=[_Resp(302)])
+
+    def test_dot_segments_on_the_first_url_are_refused(self):
+        for tail in ("../../evil/x.exe", "./x.exe", "%2e%2e/x.exe",
+                     "%2E/x.exe", "a/%2e%2E/x.exe", "a\\..\\x.exe"):
+            offer = self.offer._replace(url=DL + tail)
+            with self._get([_Resp(200, PAYLOAD)]):
+                with self.assertRaises(fu.UpdateError):
+                    fu.download(offer)
+            self.assertEqual(self.calls, [], tail)
+        self.assertEqual(self._leftovers(), [])
 
     def test_a_first_url_off_the_release_path_is_refused(self):
         offer = self.offer._replace(url="https://github.com/pokke/other/x.exe")
@@ -551,6 +603,61 @@ class HeldHandleTest(unittest.TestCase):
         os.remove(path)                      # released once closed
 
 
+class StaleCleanupTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = os.path.join(os.environ.get("TEMP", "/tmp"),
+                                "fu-stale-%d" % os.getpid())
+        os.makedirs(self.tmp, exist_ok=True)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        p = mock.patch.object(fu, "_temp_base", lambda: self.tmp)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _mk(self, name, file=False):
+        path = os.path.join(self.tmp, name)
+        if file:
+            open(path, "wb").close()
+        else:
+            os.makedirs(path)
+            open(os.path.join(path, "setup.exe"), "wb").close()
+        return path
+
+    def test_only_our_old_directories_go(self):
+        old = self._mk("jellyfin-mpv-shim-update-abc")
+        other = self._mk("something-else")
+        notdir = self._mk("jellyfin-mpv-shim-update-file", file=True)
+        fu.cleanup_stale()
+        self.assertFalse(os.path.exists(old))
+        self.assertTrue(os.path.exists(other))
+        self.assertTrue(os.path.exists(notdir))
+
+    def test_a_link_is_not_followed(self):
+        target = os.path.join(self.tmp, "precious")
+        os.makedirs(target)
+        keep = os.path.join(target, "keep.txt")
+        open(keep, "wb").close()
+        link = os.path.join(self.tmp, "jellyfin-mpv-shim-update-link")
+        try:
+            os.symlink(target, link, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("cannot make a symlink here")
+        fu.cleanup_stale()
+        self.assertTrue(os.path.exists(keep))
+
+    def test_the_check_thread_cleans_before_looking(self):
+        fu._reset_for_tests()
+        self.addCleanup(fu._reset_for_tests)
+        old = self._mk("jellyfin-mpv-shim-update-abc")
+        with mock.patch.object(fu.fork, "IS_FORK", True), \
+                mock.patch.object(fu, "running_build", lambda: 2), \
+                mock.patch.object(fu, "settings", _Settings()), \
+                mock.patch.object(fu, "_platform_ok", lambda: True), \
+                mock.patch.object(fu, "fetch_releases", lambda: []):
+            fu.check(_Checker())
+            fu._thread.join(5)
+        self.assertFalse(os.path.exists(old))
+
+
 # -- install -----------------------------------------------------------------
 
 class _Staged:
@@ -596,6 +703,18 @@ class InstallTest(unittest.TestCase):
         self.quit_result = False
         self.assertFalse(fu.install_now())
         self.assertFalse(fu.armed())
+
+    def test_a_failed_quit_puts_back_the_restart_that_was_pending(self):
+        restart.request({"ui_scale"})
+        self.quit_result = False
+        self.assertFalse(fu.install_now())
+        self.assertTrue(restart.requested())
+        self.assertEqual(restart._pending_settings, frozenset({"ui_scale"}))
+
+    def test_a_failed_quit_invents_no_restart(self):
+        self.quit_result = False
+        fu.install_now()
+        self.assertFalse(restart.requested())
 
     def test_install_now_disarms_when_the_quit_raises(self):
         def boom():
@@ -817,6 +936,30 @@ class BannerTest(unittest.TestCase):
         handlers["banner-install"]["click"]()
         self.b._install_update()
         self.assertEqual(len(self.started), 1)
+
+    def test_a_failure_landing_mid_draw_does_not_break_the_draw(self):
+        """``progress`` is read once: ``failed`` writes None from another
+        thread between a test for None and a comparison."""
+        from jellyfin_mpv_shim.mpvtk_browser import window_chrome
+
+        class Flipping(dict):
+            reads = 0
+
+            def get(self, key, default=None):
+                if key == "progress":
+                    Flipping.reads += 1
+                    return 50 if Flipping.reads == 1 else None
+                return dict.get(self, key, default)
+
+            def __getitem__(self, key):
+                if key == "progress":
+                    Flipping.reads += 1
+                    return 50 if Flipping.reads == 1 else None
+                return dict.__getitem__(self, key)
+
+        self.b._update = Flipping(version="1", url="u", install=None,
+                                  error=None, flatpak=False)
+        window_chrome.banner(self.b)          # must not raise
 
     def test_a_failure_says_so_and_gives_the_buttons_back(self):
         from tests._shell_harness import ids

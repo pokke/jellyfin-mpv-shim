@@ -578,11 +578,13 @@ def banner(b):
                    bg=theme.ACCENT_SOFT)
     # Update before offline: the offline banner is persistent, so checking
     # it first meant an update notice was never seen while offline.
-    if b._update and b._update.get("progress") is not None:
+    # Read once: the download thread writes None here when it fails, and a
+    # test followed by a second read could compare that None.
+    percent = b._update.get("progress") if b._update else None
+    if percent is not None:
         # Buttons gone while it runs: "Later" would hide the only sign that
         # the app is about to close, and a second Install would race the
         # first.
-        percent = b._update["progress"]
         return Row([
             Text(_("Installing the update \u2014 the app will restart.")
                  if percent >= 100 else

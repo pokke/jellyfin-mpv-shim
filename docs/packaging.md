@@ -329,3 +329,5 @@ installer as a GitHub release.
   build or a source checkout, since those are never offered an update. After that the
   app updates itself.
 - A push that only edits `.github/workflows/` still counts as code and releases.
+- **If UAC is declined or the installer fails**, the app stays closed: start it again
+  from the shortcut. The update is offered again at the next start.

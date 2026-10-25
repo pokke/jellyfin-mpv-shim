@@ -16,11 +16,17 @@ is there for that reason and none is a nicety:
   garbled one means no offer, not an unchecked download.
 * **The file is checked and launched through one handle** (``_open_locked``):
   opened without write or delete sharing, hashed through that handle, and kept
-  open until ``Popen`` has returned. A check followed by a separate launch
-  leaves a window in which a same-user process swaps the file for another and
-  the elevated installer runs *that*. The directory is a fresh
-  ``mkdtemp`` under ``%LOCALAPPDATA%``, never the config dir (which roams and,
-  with ``--config``, can be anywhere).
+  open until ``Popen`` has returned. So it cannot be swapped between the check
+  and the launch. The directory is a fresh ``mkdtemp`` under
+  ``%LOCALAPPDATA%``, never the config dir (which roams and, with
+  ``--config``, can be anywhere), and the file has a constant name.
+
+  **That is the whole guarantee, and it has an end.** Once ``Popen`` returns
+  the handle is closed, and Inno's elevated self-relaunch opens the installer
+  by path again; a process of the *same user* could swap the file in that
+  gap. Code already running as the user is out of scope here (it could do far
+  worse), and the real fix is Authenticode-signing the installer, which
+  Windows would then verify at the elevation.
 * The installer's arguments are constants. Nothing from the network, the
   environment or the config reaches the command line, and there is no
   ``/LOG`` (a path the installer would write to elevated).
@@ -58,7 +64,12 @@ log = logging.getLogger("fork_update")
 REPO = "pokke/jellyfin-mpv-shim"
 REPO_URL = "https://github.com/%s/" % REPO
 RELEASES_URL = REPO_URL + "releases/"
-API_URL = "https://api.github.com/repos/%s/releases?per_page=10" % REPO
+#: By numeric repository id, not by name: a name can be released by its owner
+#: and registered by someone else, an id cannot. If the repository is renamed
+#: the download and page URLs below stop matching and the offer fails closed.
+REPO_ID = 1429589493
+API_URL = ("https://api.github.com/repositories/%d/releases?per_page=10"
+           % REPO_ID)
 DOWNLOAD_PREFIX = RELEASES_URL + "download/"
 
 #: Where a download (and each redirect of it) may be fetched from.
@@ -69,13 +80,20 @@ ALLOWED_HOSTS = frozenset((
 ))
 MAX_REDIRECTS = 4
 
+#: Every directory this module makes for a download starts with this.
+TEMP_PREFIX = "jellyfin-mpv-shim-update-"
+
+#: What the download is saved as: a constant, so nothing the network said
+#: becomes part of a path.
+INSTALLER_FILENAME = "setup.exe"
+
 #: The whole command line the installer is started with. Constants.
 INSTALLER_ARGS = ("/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
                   "/RELAUNCH=1")
 
 _TAG = re.compile(r"^v.+-pokke\.(\d+)$")
 _ASSET = re.compile(
-    r"^jellyfin-mpv-shim_.+-pokke\.(\d+)_installer\.exe$")
+    r"jellyfin-mpv-shim_[0-9A-Za-z][0-9A-Za-z._+-]*-pokke\.(\d+)_installer\.exe")
 _DIGEST = re.compile(r"^sha256:([0-9a-fA-F]{64})$")
 _SUFFIX = re.compile(r"^\+pokke\.(\d+)$")
 
@@ -170,6 +188,18 @@ def fetch_releases():
         response.close()
 
 
+def _bad_path(path):
+    """Whether ``path`` has a dot segment, plain or percent-encoded, or a
+    backslash. Checked on the decoded form too, so ``%2e%2E`` cannot hide."""
+    from urllib.parse import unquote
+
+    for text in (path, unquote(path), unquote(unquote(path))):
+        if "\\" in text or any(seg in (".", "..")
+                                for seg in text.split("/")):
+            return True
+    return False
+
+
 def _in_repo(url):
     try:
         parts = urlsplit(url)
@@ -177,7 +207,7 @@ def _in_repo(url):
                 and parts.port in (None, 443)
                 and parts.username is None
                 and parts.path.startswith("/" + REPO + "/")
-                and "/.." not in parts.path)
+                and not _bad_path(parts.path))
     except (ValueError, AttributeError):
         return False
 
@@ -201,7 +231,7 @@ def _offer_for(release):
         if not isinstance(item, dict):
             continue
         name = item.get("name")
-        found = _ASSET.match(name) if isinstance(name, str) else None
+        found = _ASSET.fullmatch(name) if isinstance(name, str) else None
         if found is None or int(found.group(1)) != n:
             continue
         digest = item.get("digest")
@@ -251,8 +281,6 @@ def check(checker):
         return
     if not settings.check_updates or not settings.notify_updates_wanted():
         return
-    if not _platform_ok():
-        return
     with _lock:
         if _thread is not None:
             return
@@ -261,8 +289,39 @@ def check(checker):
         _thread.start()
 
 
+def cleanup_stale():
+    """Delete this updater's leftover temp directories from earlier updates.
+
+    Only directories whose name starts with our prefix, directly inside the
+    temp root, and never through a link: a symlink or junction named like ours
+    is left alone rather than followed.
+    """
+    try:
+        entries = list(os.scandir(_temp_base()))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if not entry.name.startswith(TEMP_PREFIX):
+                continue
+            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                continue
+            is_junction = getattr(entry, "is_junction", None)
+            if is_junction is not None and is_junction():
+                continue
+            shutil.rmtree(entry.path, ignore_errors=True)
+        except OSError:
+            log.debug("could not remove an old update directory",
+                      exc_info=True)
+
+
 def _look(checker):
     try:
+        # Here, not in check(): the probe can be slow on its first call, and
+        # check() runs under the player lock.
+        if not _platform_ok():
+            return
+        cleanup_stale()
         running = running_build()
         offer = find_update(running, fetch_releases())
         if offer is None:
@@ -317,6 +376,8 @@ def _url_ok(url, first):
         host = parts.hostname
         port = parts.port
     except ValueError:
+        return False
+    if first and _bad_path(parts.path):
         return False
     return (parts.scheme == "https" and host in ALLOWED_HOSTS
             and port in (None, 443)
@@ -470,12 +531,11 @@ def download(offer, progress=None):
 
     On any refusal the directory, and so the file, is removed.
     """
-    prefix = "jellyfin-mpv-shim-update-"
     try:
-        directory = tempfile.mkdtemp(prefix=prefix, dir=_temp_base())
+        directory = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=_temp_base())
     except OSError:
-        directory = tempfile.mkdtemp(prefix=prefix)
-    path = os.path.join(directory, offer.name)
+        directory = tempfile.mkdtemp(prefix=TEMP_PREFIX)
+    path = os.path.join(directory, INSTALLER_FILENAME)
     handle = None
     try:
         _fetch(offer, path, progress)
@@ -565,6 +625,9 @@ def install_now():
     if _staged is None:
         return False
     # A restart armed earlier would relaunch the old app beside the installer.
+    # Remembered, so a quit that does not start puts it back.
+    pending = restart.requested()
+    pending_settings = restart._pending_settings
     restart.cancel()
     _set_armed(True)
     started = False
@@ -574,6 +637,8 @@ def install_now():
         log.exception("could not start the update's shutdown")
     if not started:
         _set_armed(False)
+        if pending:
+            restart.request(pending_settings)
         return False
     return True
 
