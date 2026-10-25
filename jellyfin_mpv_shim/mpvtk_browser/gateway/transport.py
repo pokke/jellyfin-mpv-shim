@@ -105,10 +105,13 @@ class TransportMixin(GatewayCore):
         self._act(do)
 
     def seek_relative(self, secs):
-        """Relative seek for the HUD's step buttons (±10s/±30s)."""
+        """Relative seek for the HUD's step buttons (±10s/±30s).
+
+        Exact: a keyframe seek lands wherever the nearest keyframe is, so
+        "Back 10 seconds" could go back 25."""
         def do(pm):
             self._ui_seek(pm)
-            pm.seek(float(secs))
+            pm.seek(float(secs), exact=True)
         self._act(do)
 
     def kb_seek(self, action):

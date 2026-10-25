@@ -124,9 +124,9 @@ class RemoteSeekTest(unittest.TestCase):
         swept = [("LEFT", "seek", (-5.0, False)),
                  ("RIGHT", "seek", (5.0, False))]
         self.assertEqual(self._seek("left", swept, skip_back_secs=20),
-                         [(-20.0, False)])
+                         [(-20.0, True)])
         self.assertEqual(self._seek("right", swept, skip_forward_secs=45),
-                         [(45.0, False)])
+                         [(45.0, True)])
 
     def test_up_and_down_do_not(self):
         swept = [("UP", "seek", (60.0, False)),
@@ -143,7 +143,7 @@ class RemoteSeekTest(unittest.TestCase):
         swept = [("LEFT", "seek", (-5.0, False))]
         self.assertEqual(
             self._seek("left", swept, skip_back_secs=20, use_web_seek=True),
-            [(-20.0, False)])
+            [(-20.0, True)])
 
     def test_a_skip_value_that_is_not_a_distance_is_ignored(self):
         for bad in (0, -3):

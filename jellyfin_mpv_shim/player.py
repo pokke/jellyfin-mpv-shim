@@ -2411,9 +2411,11 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
             # RIGHT: the user named those two keys' distances and nothing
             # else's, and a number they typed beats a preference they may
             # have set long before.
+            # A set distance is landed on exactly: a keyframe seek stops at
+            # the nearest keyframe, which in a film can be 10 or 30 s away.
             skip = self._skip_override(key)
             if skip is not None:
-                amount = skip
+                amount, exact = skip, True
             elif settings.use_web_seek:
                 back, forward = self.get_seek_times()
                 amount = forward if amount > 0 else back
@@ -5697,7 +5699,7 @@ class PlayerManager(AudioMixin, ReportingMixin, WindowMixin):
         amount, exact = self._seek_like_the_keyboard(action)
         skip = self._skip_override(action)
         if skip is not None:
-            amount = skip
+            amount, exact = skip, True
         elif settings.use_web_seek:
             # Routed by sign, as the claimed-key path does: a binding says
             # which way it goes, never which arrow it was.

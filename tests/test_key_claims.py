@@ -525,7 +525,7 @@ class SkipDistanceDispatchTest(unittest.TestCase):
         self.assertEqual(
             self._press(["LEFT", "RIGHT"], skip_back_secs=20,
                         skip_forward_secs=45),
-            [(-20.0, False), (45.0, False)])
+            [(-20.0, True), (45.0, True)])
 
     def test_holding_a_key_does_not_walk(self):
         """Three presses, the same distance each time, and the table the
@@ -542,6 +542,15 @@ class SkipDistanceDispatchTest(unittest.TestCase):
                 pm._on_claimed_key(SEEK, "LEFT")
         self.assertEqual(got, [-20.0, -20.0, -20.0])
         self.assertEqual(pm._key_actions, before)
+
+    def test_a_set_distance_is_landed_on_exactly(self):
+        """A keyframe seek lands on the nearest keyframe, which in a film
+        can be 10 s or 30 s away -- so "skip 10 seconds" jumped anywhere
+        from 10 to 30. The distance the user typed is the distance they
+        get; an unset key keeps its binding's own exactness."""
+        self.assertEqual(
+            self._press(["LEFT", "RIGHT"], skip_back_secs=10),
+            [(-10.0, True), (5.0, False)])
 
     def test_up_and_down_keep_their_own_distance(self):
         self.assertEqual(
@@ -572,7 +581,7 @@ class SkipDistanceDispatchTest(unittest.TestCase):
                           skip_back_secs=20)
         # LEFT: the setting. RIGHT: no setting, so web seek's forward
         # distance. UP: web seek by sign, as before.
-        self.assertEqual(got, [(-20.0, False), (30.0, False),
+        self.assertEqual(got, [(-20.0, True), (30.0, False),
                                (30.0, False)])
 
     def test_a_value_that_is_not_a_distance_is_ignored(self):
@@ -587,10 +596,10 @@ class SkipDistanceDispatchTest(unittest.TestCase):
         self.assertEqual(
             self._press(["LEFT", "RIGHT"], skip_forward_secs=45,
                         use_web_seek=True),
-            [(-15.0, False), (45.0, False)])
+            [(-15.0, False), (45.0, True)])
         self.assertEqual(
             self._press(["LEFT", "RIGHT"], skip_forward_secs=45),
-            [(-5.0, False), (45.0, False)])
+            [(-5.0, False), (45.0, True)])
 
 
 class WheelSeekIsOnlyAGroupsToLoseTest(unittest.TestCase):

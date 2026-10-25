@@ -552,6 +552,7 @@ class TestTransportActionsActuallyRun(unittest.TestCase):
         import jellyfin_mpv_shim.player as player_mod
 
         calls = []
+        exacts = self.exacts = []
 
         class FakePlayer:
             _last_ui_seek_time = 0.0
@@ -561,8 +562,9 @@ class TestTransportActionsActuallyRun(unittest.TestCase):
                 fn(pm)          # the free-lock fast path
 
             @staticmethod
-            def seek(secs, absolute=False):
+            def seek(secs, absolute=False, exact=None):
                 calls.append(("seek", secs, absolute))
+                exacts.append(exact)
 
             @staticmethod
             def play_next():
@@ -584,6 +586,13 @@ class TestTransportActionsActuallyRun(unittest.TestCase):
         pm, calls = self._player()
         CTL().seek_relative(-10)
         self.assertEqual(calls, [("seek", -10.0, False)])
+
+    def test_a_step_button_lands_on_the_distance_it_names(self):
+        # Not a keyframe seek: "Back 10 seconds" landing 25 s back, because
+        # that is where the previous keyframe happened to be, is the bug.
+        pm, calls = self._player()
+        CTL().seek_relative(-10)
+        self.assertEqual(self.exacts, [True])
 
     def test_a_seek_stamps_the_skip_intro_exemption(self):
         """HUD-originated seeks are exempt from seek-to-skip-intro for a
