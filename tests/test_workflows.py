@@ -1,6 +1,6 @@
 """Shape checks on the GitHub workflows the fork's releases depend on.
 
-Nothing runs these files until a tag is pushed, so a typo in a trigger is a
+Nothing runs these files until master is pushed, so a typo in a trigger is a
 release that silently never happens. Skipped where PyYAML is not installed.
 """
 
@@ -35,43 +35,101 @@ def _load(name):
     return doc
 
 
+def _run_text(doc, job):
+    return "\n".join(str(s.get("run", "")) for s in doc["jobs"][job]["steps"])
+
+
 @unittest.skipIf(yaml is None, "PyYAML not installed")
 class ReleaseWorkflowTest(unittest.TestCase):
     def setUp(self):
         self.doc = _load("release.yml")
 
-    def test_it_triggers_on_the_fork_tag_pattern(self):
-        patterns = self.doc["on"]["push"]["tags"]
-        self.assertEqual(patterns, ["v[0-9]*-pokke.*"])
-        self.assertTrue(fnmatch.fnmatchcase("v3.3.0-pokke.5", patterns[0]))
-        self.assertFalse(fnmatch.fnmatchcase("v3.3.0", patterns[0]))
+    def test_every_push_to_master_releases(self):
+        self.assertEqual(self.doc["on"]["push"]["branches"], ["master"])
 
-    def test_it_can_be_started_by_hand_with_a_tag(self):
-        self.assertIn("tag", self.doc["on"]["workflow_dispatch"]["inputs"])
+    def test_there_is_no_tag_trigger(self):
+        """Tags are made by the publish step; a tag trigger would loop."""
+        self.assertNotIn("tags", self.doc["on"]["push"])
 
-    def test_two_releases_do_not_cancel_each_other(self):
+    def test_docs_tests_and_markdown_make_no_release(self):
+        ignore = self.doc["on"]["push"]["paths-ignore"]
+        self.assertEqual(sorted(ignore), ["**.md", "docs/**", "tests/**"])
+
+        # GitHub skips a push only when EVERY changed file matches, so a push
+        # touching code and docs still releases. fnmatch's "*" also crosses
+        # "/", as GitHub's "**" does, which is all these patterns need.
+        def skipped(files):
+            return all(any(fnmatch.fnmatchcase(f, pat) for pat in ignore)
+                       for f in files)
+
+        self.assertTrue(skipped(["docs/packaging.md"]))
+        self.assertTrue(skipped(["tests/test_x.py", "README.md"]))
+        self.assertTrue(skipped(["jellyfin_mpv_shim/notes.md"]))
+        self.assertFalse(skipped(["jellyfin_mpv_shim/player.py"]))
+        self.assertFalse(skipped(["jellyfin_mpv_shim/player.py",
+                                  "docs/packaging.md"]))
+
+    def test_it_can_be_started_by_hand(self):
+        self.assertIn("workflow_dispatch", self.doc["on"])
+
+    def test_two_releases_queue_instead_of_cancelling(self):
         conc = self.doc["concurrency"]
-        self.assertIn("github.ref", conc["group"])
+        self.assertEqual(conc["group"], "release")
         self.assertIs(conc["cancel-in-progress"], False)
 
-    def test_the_build_is_the_existing_workflow(self):
+    def test_the_tag_is_made_from_constants_and_the_run_number(self):
+        prepare = self.doc["jobs"]["prepare"]
+        self.assertIn("CLIENT_VERSION", _run_text(self.doc, "prepare"))
+        self.assertIn("github.run_number", str(prepare))
+        self.assertIn("-pokke.", str(prepare))
+        self.assertIn("tag", prepare["outputs"])
+
+    def test_the_build_is_the_existing_workflow_with_that_tag(self):
         build = self.doc["jobs"]["build"]
         self.assertEqual(build["uses"], "./.github/workflows/main.yml")
-        self.assertIn("tag", build["with"])
+        self.assertIn("prepare", build["needs"])
+        self.assertIn("needs.prepare.outputs.tag", build["with"]["tag"])
         self.assertEqual(build["permissions"], {"contents": "read"})
 
-    def test_only_publish_can_write(self):
+    def test_the_unit_suite_runs_without_write_access(self):
+        test = self.doc["jobs"]["test"]
+        self.assertEqual(test["permissions"], {"contents": "read"})
+        self.assertIn("run_tests_parallel.py", _run_text(self.doc, "test"))
+
+    def test_publish_waits_for_the_build_and_the_tests(self):
         publish = self.doc["jobs"]["publish"]
-        self.assertEqual(publish["needs"], "build")
+        self.assertEqual(sorted(publish["needs"]),
+                         ["build", "prepare", "test"])
         self.assertEqual(publish["permissions"], {"contents": "write"})
-        self.assertIn("refs/tags/", publish["if"])
         self.assertIn("GH_TOKEN", publish["env"])
 
-    def test_publish_creates_a_release_from_the_existing_tag(self):
-        steps = self.doc["jobs"]["publish"]["steps"]
-        text = "\n".join(str(s.get("run", "")) for s in steps)
+    def test_only_a_push_to_master_of_the_fork_publishes(self):
+        condition = self.doc["jobs"]["publish"]["if"]
+        self.assertIn("github.event_name == 'push'", condition)
+        self.assertIn("github.ref == 'refs/heads/master'", condition)
+        self.assertIn("github.repository == 'pokke/jellyfin-mpv-shim'",
+                      condition)
+
+    def test_only_publish_can_write(self):
+        for name, job in self.doc["jobs"].items():
+            if name != "publish":
+                self.assertNotEqual(
+                    job.get("permissions", {}).get("contents"), "write", name)
+
+    def test_publish_pins_the_release_to_the_built_commit(self):
+        text = _run_text(self.doc, "publish")
         self.assertIn("gh release create", text)
-        self.assertIn("--verify-tag", text)
+        self.assertIn('--target "$GITHUB_SHA"', text)
+        self.assertIn("--generate-notes", text)
+        self.assertIn("--latest", text)
+        self.assertNotIn("--verify-tag", text)
+
+    def test_a_rerun_of_a_failed_publish_repairs_the_release(self):
+        text = _run_text(self.doc, "publish")
+        self.assertIn('gh release view "$TAG"', text)
+        self.assertIn("gh release upload", text)
+        self.assertIn("--clobber", text)
+        self.assertIn("--draft=false", text)
 
 
 @unittest.skipIf(yaml is None, "PyYAML not installed")
@@ -80,8 +138,12 @@ class BuildWorkflowTest(unittest.TestCase):
         self.doc = _load("main.yml")
 
     def test_it_still_builds_on_push_and_by_hand(self):
-        self.assertIn("master", self.doc["on"]["push"]["branches"])
+        self.assertIn("main", self.doc["on"]["push"]["branches"])
+        self.assertIn("working", self.doc["on"]["push"]["branches"])
         self.assertIn("workflow_dispatch", self.doc["on"])
+
+    def test_master_is_built_by_release_yml_not_twice(self):
+        self.assertNotIn("master", self.doc["on"]["push"]["branches"])
 
     def test_it_can_be_called_with_a_tag(self):
         call = self.doc["on"]["workflow_call"]

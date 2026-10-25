@@ -52,6 +52,25 @@ class DisplayVersionTest(unittest.TestCase):
         self.assertFalse(fork.IS_FORK)
 
 
+class ReleaseBuildTest(unittest.TestCase):
+    def test_a_release_suffix_gives_its_number(self):
+        from jellyfin_mpv_shim import fork
+
+        self.assertEqual(fork.release_build("+pokke.5"), 5)
+        self.assertEqual(fork.release_build("+pokke.12"), 12)
+
+    def test_a_dev_or_missing_suffix_is_not_a_release(self):
+        from jellyfin_mpv_shim import fork
+
+        for suffix in ("+pokke.dev5", "", "+other.5", "+pokke.", "+pokke.5x"):
+            self.assertIsNone(fork.release_build(suffix), suffix)
+
+    def test_a_source_checkout_has_no_release_build(self):
+        from jellyfin_mpv_shim import fork
+
+        self.assertIsNone(fork.RELEASE_BUILD)
+
+
 class ConstantsTest(unittest.TestCase):
     def test_client_version_is_assigned_once_at_the_left_margin(self):
         """gen_pkg.sh and artifacts.sh grep for it; setuptools reads it
@@ -119,15 +138,31 @@ class StampScriptTest(unittest.TestCase):
                     text = handle.read()
             return done.returncode, text
 
-    def test_a_bare_number_is_a_build_number(self):
+    def test_a_bare_number_is_a_dev_build(self):
+        """CI run numbers and release numbers are different counters, so a
+        bare number must never read as a release."""
         code, text = self._run("7")
         self.assertEqual(code, 0)
-        self.assertIn('SUFFIX = "+pokke.7"', text)
+        self.assertIn('SUFFIX = "+pokke.dev7"', text)
 
     def test_a_matching_tag_is_mapped(self):
         code, text = self._run("v%s-pokke.12" % _base_version())
         self.assertEqual(code, 0)
         self.assertIn('SUFFIX = "+pokke.12"', text)
+
+    def test_a_pre_release_base_version_is_accepted(self):
+        with mock.patch.object(sys.modules[__name__], "_base_version",
+                               return_value="3.4.0pre1"):
+            pass  # the stamp script reads constants.py itself; see below
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("stamp_t", STAMP)
+        stamp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(stamp)
+        with mock.patch.object(stamp, "base_version",
+                               return_value="3.4.0pre1"):
+            self.assertEqual(stamp.suffix_for("v3.4.0pre1-pokke.4"),
+                             "+pokke.4")
+            self.assertIsNone(stamp.suffix_for("v3.4.0-pokke.4"))
 
     def test_a_tag_for_another_version_is_refused(self):
         code, text = self._run("v9.9.9-pokke.1")
@@ -144,7 +179,7 @@ class StampScriptTest(unittest.TestCase):
         _code, text = self._run("3")
         ns = {}
         exec(compile(text, "_fork_build.py", "exec"), ns)
-        self.assertEqual(ns["SUFFIX"], "+pokke.3")
+        self.assertEqual(ns["SUFFIX"], "+pokke.dev3")
 
 
 class UpdateCheckDisabledTest(unittest.TestCase):

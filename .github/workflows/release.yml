@@ -1,40 +1,99 @@
 name: release
 
-# Pushing a tag like v3.3.0-pokke.5 builds the fork (main.yml) and attaches the
-# Windows x64 installer to a GitHub release of that tag. The tag must name the
-# version constants.py is at: tools/stamp_fork_build.py refuses it otherwise.
+# Every push to master that changes more than docs, tests or markdown builds
+# the fork (main.yml), runs the unit suite, and publishes the Windows x64
+# installer as a GitHub release numbered v<CLIENT_VERSION>-pokke.<run number>.
+# The numbers only go up, which is what lets the app tell a newer release from
+# its own (jellyfin_mpv_shim/fork_update.py). docs/packaging.md section 6.
 on:
   push:
-    tags:
-      - 'v[0-9]*-pokke.*'
+    branches:
+      - master
+    # A push is skipped only when EVERY file it changes matches, so one that
+    # touches code and docs still releases. "**.md" rather than "**/*.md":
+    # the latter is read as needing a directory, so it would miss README.md.
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/**'
+      - '**.md'
+  # A manual run builds and tests but never publishes: see the `if` on publish.
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Build identity: a tag such as v3.3.0-pokke.5, or a number'
-        required: false
-        type: string
 
-# One release per ref at a time, and a running one is never cancelled half way
-# through publishing.
+# One release at a time, queued rather than cancelled: a running one is never
+# stopped half way through publishing. The group is fixed (not per ref) so two
+# pushes can never be numbering at once.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
-  build:
-    uses: ./.github/workflows/main.yml
-    with:
-      tag: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+  prepare:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v7
+    - name: Name the release
+      id: tag
+      # This workflow's own run_number, not main.yml's: inside a called
+      # workflow github.run_number is still the caller's, which is this one.
+      run: |
+        version=$(sed -n 's/^CLIENT_VERSION = "\(.*\)"$/\1/p' jellyfin_mpv_shim/constants.py)
+        if [ -z "$version" ]; then
+          echo "no CLIENT_VERSION in constants.py" >&2
+          exit 1
+        fi
+        echo "tag=v${version}-pokke.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+  build:
+    needs: prepare
+    uses: ./.github/workflows/main.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    permissions:
+      contents: read
+  test:
+    # The unit suite, so a broken push is not shipped. Same command as
+    # CLAUDE.md's "Faster unit runs"; xvfb because importing player.py opens
+    # a real mpv window (docs/testing.md section 1).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v7
+    - name: Setup Python 3.14
+      uses: actions/setup-python@v7
+      with:
+        python-version: 3.14
+    - name: Install system packages
+      # libmpv for python-mpv, xvfb for the window, the shaping libraries
+      # Pillow's Raqm layout loads at runtime, fonts for the pilfont tests,
+      # gettext and unzip for gen_pkg.sh.
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libmpv2 xvfb libfribidi0 libharfbuzz0b libraqm0 fonts-dejavu-core fonts-noto-cjk gettext unzip
+    - name: Install dependencies
+      run: |
+        pip install wheel pyyaml
+        pip install .[all]
+        ./gen_pkg.sh --skip-build
+    - name: Unit tests
+      run: |
+        xvfb-run -a python3 tools/run_tests_parallel.py
   publish:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, build, test]
+    # Only a push to master of the fork publishes. A manual run, or the same
+    # workflow in someone else's fork, stops after build and test.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'pokke/jellyfin-mpv-shim'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
     steps:
     - name: Download the Windows installer
       uses: actions/download-artifact@v7
@@ -42,6 +101,14 @@ jobs:
         name: windows
         path: release-files
     - name: Create the release
+      # --target makes GitHub create the tag at this commit. Re-running a
+      # failed publish keeps the run number, so the release may already exist
+      # (or be a draft): repair it instead of failing on "already exists".
       run: |
-        gh release create "$GITHUB_REF_NAME" release-files/*.exe \
-          -R "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+        if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          gh release upload "$TAG" release-files/*.exe --clobber -R "$GITHUB_REPOSITORY"
+          gh release edit "$TAG" --draft=false --latest -R "$GITHUB_REPOSITORY"
+        else
+          gh release create "$TAG" release-files/*.exe \
+            --target "$GITHUB_SHA" --generate-notes --latest -R "$GITHUB_REPOSITORY"
+        fi

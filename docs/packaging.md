@@ -308,3 +308,24 @@ requires the `build` package (`pip install build`); `pip install .[all]` and
 `gen_pkg.sh` also fetches `jellyfin_mpv_shim/default_shader_pack/` from the
 [`iwalton3/default-shader-pack`](https://github.com/iwalton3/default-shader-pack) GitHub
 release; that directory is not in git (see `.gitignore`).
+
+## 6. Fork releases
+
+Every push to `master` that changes more than `docs/`, `tests/` or markdown runs
+`.github/workflows/release.yml`: it builds (`main.yml`), runs the unit suite on Linux
+(`tools/run_tests_parallel.py`), and only if both pass publishes the Windows x64
+installer as a GitHub release.
+
+- **Numbering.** The tag is `v<CLIENT_VERSION>-pokke.<n>`, `n` being `release.yml`'s own
+  `run_number`. It only goes up, and the app compares only `n` (the version part may
+  change, even to a `pre` spelling). `main.yml`'s counter is a different one, so a build
+  not made by a release is stamped `+pokke.dev<n>` and is never offered an update.
+  `main.yml` no longer builds `master` on push, so a push is not built twice.
+- **Re-running a failed publish.** Use "Re-run failed jobs" on the run. The run number
+  is kept, so the tag is too; publish finds the existing release, re-uploads the
+  installer (`--clobber`) and un-drafts it. A manual `workflow_dispatch` builds and
+  tests but never publishes.
+- **The first auto-release has to be installed by hand** by anyone running a dev
+  build or a source checkout, since those are never offered an update. After that the
+  app updates itself.
+- A push that only edits `.github/workflows/` still counts as code and releases.

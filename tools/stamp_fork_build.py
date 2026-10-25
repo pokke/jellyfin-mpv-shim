@@ -3,10 +3,15 @@
 
 Reads the build identity from the environment variable ``JMS_FORK_BUILD``:
 
-- a bare number (a CI run number) gives the suffix ``+pokke.<n>``;
-- a release tag ``v<base>-pokke.<n>`` gives the same, and is refused unless
-  ``<base>`` is the ``CLIENT_VERSION`` in constants.py -- a tag that names a
-  version the tree is not at would ship a build under the wrong name.
+- a bare number (a CI run number) gives the suffix ``+pokke.dev<n>``: a
+  development build, which is never offered an update;
+- a release tag ``v<base>-pokke.<n>`` gives ``+pokke.<n>``, a release build,
+  and is refused unless ``<base>`` is the ``CLIENT_VERSION`` in constants.py
+  -- a tag that names a version the tree is not at would ship a build under
+  the wrong name.
+
+The two are kept apart because CI run numbers and release numbers are two
+counters: a dev build must never read as a release newer than itself.
 
 constants.py is read as text, not imported: importing the package here would
 read whatever stamp is already in the tree. See jellyfin_mpv_shim/fork.py.
@@ -31,9 +36,10 @@ def base_version():
 
 
 def suffix_for(value):
-    """``+pokke.<n>`` for a build number or a matching tag, else None."""
+    """``+pokke.dev<n>`` for a build number, ``+pokke.<n>`` for a matching
+    tag, else None."""
     if re.fullmatch(r"\d+", value):
-        return "+pokke.%s" % value
+        return "+pokke.dev%s" % value
     tag = re.fullmatch(r"v(.+)-pokke\.(\d+)", value)
     if tag is None:
         return None
