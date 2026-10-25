@@ -81,8 +81,17 @@ jobs:
         pip install .[all]
         ./gen_pkg.sh --skip-build
     - name: Unit tests
+      # The job log needs a GitHub login to read; annotations do not. So the
+      # failing modules and tests are also raised as annotations.
       run: |
-        xvfb-run -a python3 tools/run_tests_parallel.py
+        set -o pipefail
+        status=0
+        xvfb-run -a python3 tools/run_tests_parallel.py 2>&1 | tee unit.log || status=$?
+        if [ "$status" -ne 0 ]; then
+          grep -E "^FAILED modules:" unit.log | sed 's/^/::error::/' || true
+          grep -E -A4 "^(FAIL|ERROR): " unit.log | head -c 3500             | python3 -c "import sys; print('::error title=Failing tests::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+        fi
+        exit $status
   publish:
     needs: [prepare, build, test]
     # Only a push to master of the fork publishes. A manual run, or the same
