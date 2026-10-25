@@ -38,7 +38,10 @@ genuine partial patch, not a whole-document RMW); `trickplay.py` (re-checks the
 video after every blocking step; `_covers` records the *asked* span);
 `tile_renderer._request_image` (backoff, max attempts, 4xx negative cache);
 `pages/reader.py`'s threading (its parked page bitmap was *not* clean: it drew
-freed buffers, see browser-shell.md §6 "Held bitmaps"); every `_start_daemon` poller; `headless`; `update_check.py`;
+freed buffers, see browser-shell.md §6 "Held bitmaps"); every `_start_daemon` poller; `headless`; `update_check.py` (a fork release
+build hands off to `fork_update.py`, which downloads and runs an installer: its
+host allowlist, digest check, handle-held launch and constant installer
+arguments are deliberate, not over-engineering; see its docstring);
 the pointer/hover path across suspend/resume; the HUD across mpv's console on
 both backends.
 

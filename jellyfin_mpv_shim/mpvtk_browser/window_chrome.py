@@ -578,15 +578,37 @@ def banner(b):
                    bg=theme.ACCENT_SOFT)
     # Update before offline: the offline banner is persistent, so checking
     # it first meant an update notice was never seen while offline.
+    if b._update and b._update.get("progress") is not None:
+        # Buttons gone while it runs: "Later" would hide the only sign that
+        # the app is about to close, and a second Install would race the
+        # first.
+        percent = b._update["progress"]
+        return Row([
+            Text(_("Installing the update \u2014 the app will restart.")
+                 if percent >= 100 else
+                 _("Downloading update\u2026 %d%%") % percent,
+                 size="normal"),
+            Spacer(),
+        ], pad=10, gap=10, align="center", h=48, bg=theme.ACCENT_SOFT)
     if b._update:
         # Inside a Flatpak the releases page cannot install anything, so the
         # notice says what can -- but it keeps the link, because the release
         # notes are worth reading wherever the build comes from.
-        return Row([
-            Text((_("Update available: %s \u2014 run \u201cflatpak update\u201d")
+        row = [
+            Text((_("Update failed: %s") % b._update["error"])
+                 if b._update.get("error") else
+                 (_("Update available: %s \u2014 run \u201cflatpak update\u201d")
                   if b._update.get("flatpak") else _("Update available: %s"))
                  % b._update["version"], size="normal"),
             Spacer(),
+        ]
+        if b._update.get("install"):
+            row.append(Button(
+                _("Install update"), id="banner-install",
+                tip=_("Download and install this version, then restart. "
+                      "Windows may ask for administrator approval."),
+                on_click=b._install_update))
+        row += [
             # Three answers, because two were not enough: "Later" is this
             # run only, and without a way to say "not this version" the
             # answer people reach for is turning the update check off
@@ -598,7 +620,9 @@ def banner(b):
             Button(_("Ignore"), id="banner-ignore",
                    tip=_("Do not mention this version again"),
                    on_click=b._ignore_update),
-        ], pad=10, gap=10, align="center", h=48, bg=theme.ACCENT_SOFT)
+        ]
+        return Row(row, pad=10, gap=10, align="center", h=48,
+                   bg=theme.ACCENT_SOFT)
     if b._unreachable and not b._offline:
         row = [Text(_("The server isn't answering."), size="normal"),
                Spacer(),

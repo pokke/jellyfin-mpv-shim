@@ -3468,19 +3468,56 @@ class MpvtkBrowser(DialogsMixin, LiveTvDialogsMixin, AuthMixin, SettingsMixin,
         ], flex=1, direction="column", align="stretch", gap=14)
 
 
-    def notify_update(self, version, url):
+    def notify_update(self, version, url, install=None):
         """Registered as playerManager.notify_update: show the update notice
         as a browser banner (mirrors the Tk browser / CLI-OSD split).
 
         ``flatpak`` decides the wording only -- the link stays either way.
         Asked once here rather than in the banner builder, which runs on
         every repaint while the notice is up.
+
+        ``install``, when given, is the fork build's one-click install:
+        ``install(progress, failed)`` starts it on a thread of its own and
+        returns, calling ``progress(percent)`` and ``failed(reason)`` from
+        that thread. See fork_update.py.
         """
         from ..hostinfo import flatpak_managed
 
         self._update = {"version": version, "url": url,
-                        "flatpak": flatpak_managed()}
+                        "flatpak": flatpak_managed(), "install": install,
+                        "progress": None, "error": None}
         self.invalidate()
+
+    def _install_update(self):
+        """The update banner's Install button.
+
+        The state lives in the notice's own dict and is written from the
+        download thread, then drawn by the next repaint: the banner is rebuilt
+        from ``_update`` every time, so each write has to ask for one.
+        """
+        update = self._update
+        if not update or not update.get("install"):
+            return
+        if update.get("progress") is not None:
+            return                    # already running; one at a time
+        update["error"] = None
+        update["progress"] = 0
+
+        def progress(percent):
+            update["progress"] = percent
+            self.invalidate()
+
+        def failed(reason):
+            update["progress"] = None
+            update["error"] = reason
+            self.invalidate()
+
+        self.invalidate()
+        try:
+            update["install"](progress, failed)
+        except Exception as exc:
+            log.exception("could not start the update")
+            failed(type(exc).__name__)
 
     def resend_hud_config(self):
         """Re-send the renderer's HUD token. Called when SyncPlay is joined
