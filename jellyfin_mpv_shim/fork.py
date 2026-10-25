@@ -1,14 +1,16 @@
 """Fork build identity.
 
-A build of this fork carries ``+pokke.<n>`` after the upstream version, so a
-log, a server's device list or ``--version`` says which build it is.
-``tools/stamp_fork_build.py`` writes ``_fork_build.py`` at build time; a source
-checkout or an upstream build has no such file and keeps upstream's identity.
+A release build of this fork carries ``+pokke.<n>`` after the upstream
+version, and a CI dev build ``+pokke.dev<n>``, so a log, a server's device list
+or ``--version`` says which build it is. ``tools/stamp_fork_build.py`` writes
+``_fork_build.py`` at build time; a source checkout or an upstream build has no
+such file and keeps upstream's identity.
 
-**The update check is switched off in a fork build.** Its notice points at
-upstream's releases page, and installing what it offers would overwrite the
-fork. The reason is recorded here rather than in docs/do-not-fix.md, which
-upstream edits constantly.
+**A fork build never checks upstream for updates.** Upstream's notice points at
+its own releases page, and installing what it offers would overwrite the fork.
+A release build checks the fork's own releases instead (fork_update.py); a dev
+build checks nothing. The reason is recorded here rather than in
+docs/do-not-fix.md, which upstream edits constantly.
 """
 
 import re
