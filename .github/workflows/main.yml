@@ -26,12 +26,12 @@ jobs:
       with:
         python-version: 3.14
     - name: Setup git SDK
-      uses: Shadowghost/setup-git-for-windows-sdk@node-24
+      uses: Shadowghost/setup-git-for-windows-sdk@f9874d69272e44a9cfaeb479b0a647b9277eb7a2  # node-24, pinned (fork)
       with:
         flavor: minimal
     - name: Download mpv
       id: mpv
-      uses: robinraju/release-downloader@v1
+      uses: robinraju/release-downloader@28fc21f50d76778e7023361aa1f863e717d3d56f  # v1, pinned (fork)
       with:
         repository: 'shinchiro/mpv-winbuild-cmake'
         # Pinned rather than `latest: true`, and the pin is load-bearing --
@@ -141,12 +141,12 @@ jobs:
       with:
         python-version: 3.14
     - name: Setup git SDK
-      uses: Shadowghost/setup-git-for-windows-sdk@node-24
+      uses: Shadowghost/setup-git-for-windows-sdk@f9874d69272e44a9cfaeb479b0a647b9277eb7a2  # node-24, pinned (fork)
       with:
         flavor: minimal
     - name: Download mpv
       id: mpv
-      uses: robinraju/release-downloader@v1
+      uses: robinraju/release-downloader@28fc21f50d76778e7023361aa1f863e717d3d56f  # v1, pinned (fork)
       with:
         repository: 'shinchiro/mpv-winbuild-cmake'
         # Pinned, not held down -- we ship the Vulkan loader now; see
@@ -248,7 +248,7 @@ jobs:
         architecture: arm64
     - name: Download mpv
       id: mpv
-      uses: robinraju/release-downloader@v1
+      uses: robinraju/release-downloader@28fc21f50d76778e7023361aa1f863e717d3d56f  # v1, pinned (fork)
       with:
         repository: 'shinchiro/mpv-winbuild-cmake'
         # Pinned, not held down -- we ship the Vulkan loader now; see
