@@ -87,9 +87,9 @@ jobs:
         xvfb-run -a python3 tools/run_tests_parallel.py 2>&1 | tee unit.log || status=$?
         if [ "$status" -ne 0 ]; then
           grep -E "^FAILED modules:" unit.log | sed 's/^/::error::/' || true
-          grep -E -A4 "^(FAIL|ERROR): " unit.log | head -c 3500             | python3 -c "import sys; print('::error title=Failing tests::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          grep -E -A4 "^(FAIL|ERROR): " unit.log | head -c 3500             | python3 -c "import sys; print('::error title=Failing tests::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))" || true
           # A snapshot failure is a line diff ("- {...}" / "+ {...}").
-          grep -E "^[-+] \{" unit.log | head -c 6000             | python3 -c "import sys; print('::error title=Snapshot diff::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          grep -E "^[-+] \{" unit.log | head -c 6000             | python3 -c "import sys; print('::error title=Snapshot diff::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))" || true
         fi
         # test_mpvtk_pilfont depends on which fonts the host has, and fails
         # on a clean upstream checkout on both this runner and the owner's
