@@ -7017,6 +7017,12 @@ msgstr ""
 msgid "Search…"
 msgstr ""
 
+#. Tooltip of the X button beside the search field on the navigation bar;
+#. empties the field. Shown only while the field has text in it.
+#: jellyfin_mpv_shim/mpvtk_browser/window_chrome.py
+msgid "Clear search"
+msgstr ""
+
 #. Banner shown when settings were changed that only take effect after the
 #. application is started again. %s is a comma-separated list of those
 #. settings' names.

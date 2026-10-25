@@ -259,6 +259,16 @@ def resize_grip(b, w, h):
         x=w - RESIZE_GRIP, y=h - RESIZE_GRIP)
 
 
+def _set_search_term(b, value):
+    """Store the search box's text. Repaints only when the box goes from
+    empty to not or back, since that is all the X beside it depends on:
+    a repaint per keystroke would fight the caret."""
+    had = bool(b._search_box.get("term"))
+    b._search_box["term"] = value or ""
+    if bool(value) != had:
+        b.invalidate()
+
+
 def chrome_bar(b, compact, probe=False, servers=None,
                 users=None):
     # `bar_title` where a route sets one, because the bar and the page
@@ -411,8 +421,19 @@ def chrome_bar(b, compact, probe=False, servers=None,
                 # abuts, on every screen.
                 size="large",
                 w=140 if compact else 220,
-                on_change=lambda v: b._search_box.__setitem__("term", v),
+                # The scene's text wins only while it is empty, which is
+                # what lets the X below clear the box; always forcing would
+                # reset the caret on every repaint while typing.
+                text=b._search_box.get("term", ""),
+                force=not b._search_box.get("term"),
+                on_change=lambda v: _set_search_term(b, v),
                 on_submit=b._search),
+    ]
+    if b._search_box.get("term"):
+        right.append(Button("", id="nav-search-clear", icon="close",
+                            size="large", tip=_("Clear search"),
+                            on_click=lambda: _set_search_term(b, "")))
+    right += [
         # The textbox submits on Enter, but a visible button is the
         # discoverable affordance (and the only one with a pointer).
         Button("", id="nav-search-go", icon="search", size="large",

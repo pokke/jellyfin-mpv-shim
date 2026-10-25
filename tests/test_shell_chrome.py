@@ -435,6 +435,65 @@ class TestChromePolish(unittest.TestCase):
             self.assertLessEqual(bar["x"] + bar["w"], w,
                                  "top bar overflows at %dpx" % w)
 
+class TestSearchBoxClear(unittest.TestCase):
+    """An X beside the top-bar search box empties it.
+
+    Shown only while there is something to clear, so the field's first
+    keystroke and the clear both have to ask for a repaint: the box itself
+    is renderer-local edit state, and nothing else redraws the bar.
+    """
+
+    def setUp(self):
+        self.b = MpvtkBrowser(app=None, source=MultiServerSource())
+        self.b._pool = _SyncPool()
+        self.drawn = []
+        self.b.invalidate = lambda: self.drawn.append(1)
+
+    def _node(self, nid):
+        nodes, handlers = build_scene(self.b, size=(1280, 720))
+        found = [n for n in nodes if n.get("id") == nid]
+        return (found[0] if found else None), handlers
+
+    def test_no_x_while_the_box_is_empty(self):
+        node, _h = self._node("nav-search-clear")
+        self.assertIsNone(node)
+
+    def test_typing_shows_the_x_and_asks_for_the_repaint(self):
+        _n, h = self._node("nav-search")
+        h["nav-search"]["change"]("ripley")
+        self.assertTrue(self.drawn, "the X cannot appear without a redraw")
+        node, _h = self._node("nav-search-clear")
+        self.assertIsNotNone(node)
+        self.assertTrue(node.get("tip"))
+
+    def test_the_x_empties_the_box_over_several_searches(self):
+        for term in ("alien", "heat", "ronin"):
+            with self.subTest(term=term):
+                _n, h = self._node("nav-search")
+                h["nav-search"]["change"](term)
+                _n, h = self._node("nav-search-clear")
+                self.drawn.clear()
+                h["nav-search-clear"]["click"]()
+                self.assertEqual(self.b._search_box["term"], "")
+                self.assertTrue(self.drawn)
+                box, _h = self._node("nav-search")
+                # The scene's empty value has to win over the renderer's
+                # own edit state, which still holds the old term.
+                self.assertEqual(box.get("text"), "")
+                self.assertTrue(box.get("force"))
+                gone, _h = self._node("nav-search-clear")
+                self.assertIsNone(gone)
+
+    def test_typing_does_not_repaint_every_keystroke(self):
+        _n, h = self._node("nav-search")
+        h["nav-search"]["change"]("r")
+        self.drawn.clear()
+        for term in ("ri", "rip", "ripl"):
+            h["nav-search"]["change"](term)
+        self.assertEqual(self.drawn, [],
+                         "a redraw per keystroke resets the caret")
+
+
 class TestBackButtonHistoryMenu(unittest.TestCase):
     """Right-clicking Back lists the page stack and jumps anywhere in it.
 
